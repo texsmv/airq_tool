@@ -31,7 +31,7 @@ def getContrastiveFeatures(X, y, epochs = 100, batch_size = 32, head='linear', l
     else:
         subsequence_length = X.shape[2]
 
-    model      = SiameseNetwork(
+    model      = SiameseNetworkMH(
         X.shape[1], 
         subsequence_length, 
         device,

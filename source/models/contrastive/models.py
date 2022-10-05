@@ -123,54 +123,6 @@ class CNNFeaturesCust(nn.Module):
             return x
     
 
-class CNNFeaturesLSTM(nn.Module):
-    def __init__(self, in_features, device, length, feat_size, use_batch_norm = True, conv_filters = [16, 16, 16], conv_kernels = [5, 5, 5]):
-        super(CNNFeaturesLSTM, self).__init__()
-        self.use_batch_norm = use_batch_norm
-        self.n_conv = len(conv_filters)
-        self.convs = []
-        self.bns = []
-        in_size = in_features
-        for i in range(self.n_conv):
-            k = conv_kernels[i]
-            p = k // 2
-            self.convs.append(nn.Conv1d(in_size, conv_filters[i], k, stride = 1, padding_mode='replicate', padding = p, device=device))
-            in_size = conv_filters[i]
-            if self.use_batch_norm:
-                self.bns.append(nn.BatchNorm1d(conv_filters[i], device =device))
-        self.dropout = nn.Dropout(p=0.2)
-        self.m = nn.MaxPool1d(2)
-        
-        self.feat_size = (length// 2 ** len(conv_filters)) * conv_filters[-1]
-        # self.dense = nn.Linear(self.feat_size, feat_size)
-        
-        lstm_hidden = 256
-        
-        self.dense = nn.Linear(lstm_hidden, feat_size)
-        
-        self.rnn = nn.LSTM(conv_filters[-1], lstm_hidden, 2)
-    def forward(self,x):
-        
-        for i in range(self.n_conv):
-            x = self.convs[i](x)
-            x = F.relu(x)
-            if self.use_batch_norm:
-                x = self.bns[i](x)
-            else:
-                x = self.dropout(x)
-            x = self.m(x)
-        
-        x = torch.transpose(x, 1, 2)
-        h, _ = self.rnn(x)
-        
-        x = h[:, -1, :]
-        
-        x = torch.flatten(x, start_dim=1)
-        x = self.dense(x)
-        x = F.relu(x)
-        x = F.normalize(x, dim=1)
-        return x
-    
 
 
 class CNNFeatures(nn.Module):
@@ -330,17 +282,19 @@ class SiameseNetworkMH(nn.Module):
         #     x = self.linear(x)
         #     return x, z_mu, z_var
         # else:
-        repr = None
-        z_mu = None
-        z_var = None
+        reprs = []
+        z_mus = []
+        z_vars = []
         for i in range(self.in_features):
-            if repr is None:
-                repr, z_mu, z_var = self.dheads[i](x)
-            else:
-                reprT, z_muT, z_varT = self.dheads[i](x)
-                repr = torch.concatenate([repr,reprT], axis=2)
-                z_mu = torch.concatenate([z_mu,z_muT], axis=2)
-                z_var = torch.concatenate([z_var,z_varT], axis=2)
+            repr, z_mu, z_var = self.dheads[i](x)
+            reprs.append(repr)
+            z_mus.append(z_mu)
+            z_vars.append(z_var)
+            
+        repr = torch.concatenate(reprs, dim=2)
+        z_mu = torch.concatenate(z_mus, dim=2)
+        z_var = torch.concatenate(z_vars, dim=2)
+        
         x = repr
             # x = self.features(x)
         x = self.linear(x)
@@ -361,7 +315,20 @@ class SiameseNetworkMH(nn.Module):
                 x = getRandomSlides(x, self.length)
                 x = torch.from_numpy(x)
                 x = x.to(device)
-                x = self.features(x)
+                # x = self.features(x)
+                reprs = []
+                z_mus = []
+                z_vars = []
+                for i in range(self.in_features):
+                    repr, z_mu, z_var = self.dheads[i](x)
+                    reprs.append(repr)
+                    z_mus.append(z_mu)
+                    z_vars.append(z_var)
+                    
+                repr = torch.concatenate(reprs, dim=2)
+                z_mu = torch.concatenate(z_mus, dim=2)
+                z_var = torch.concatenate(z_vars, dim=2)              
+                x = repr
 
                 output.append(x)
                 
@@ -383,10 +350,23 @@ class SiameseNetworkMH(nn.Module):
                 x = getRandomSlides(x, self.length)
                 x = torch.from_numpy(x)
                 x = x.to(device)
-                if self.use_KL_regularizer:
-                    x, _, _ = self.features(x)
-                else:
-                    x = self.features(x)
+                # if self.use_KL_regularizer:
+                #     x, _, _ = self.features(x)
+                # else:
+                #     x = self.features(x)
+                reprs = []
+                z_mus = []
+                z_vars = []
+                for i in range(self.in_features):
+                    repr, z_mu, z_var = self.dheads[i](x)
+                    reprs.append(repr)
+                    z_mus.append(z_mu)
+                    z_vars.append(z_var)
+                    
+                repr = torch.concatenate(reprs, dim=2)
+                z_mu = torch.concatenate(z_mus, dim=2)
+                z_var = torch.concatenate(z_vars, dim=2)              
+                x = repr
                 # x = self.linear(x)
 
                 output.append(x)
@@ -395,64 +375,6 @@ class SiameseNetworkMH(nn.Module):
         return output.cpu().numpy()
     
 
-
-class LSTMSiameseNetwork(nn.Module):
-    def __init__(self, in_features, length, device, feat_size=1024, encoding_size = 8, head='linear', conv_filters = [16, 16, 16], conv_kernels = [5, 5, 5]): # mlp
-        super().__init__()
-        self.features = CNNFeaturesLSTM(in_features, device, length, feat_size, conv_filters=conv_filters, conv_kernels=conv_kernels)
-        self.linear = HeadModel(feat_size, head = head, feat_dim=encoding_size)
-        self.length = length
-        self.in_features = in_features
-        
-    def forward(self,x):
-        x = self.features(x)
-        x = self.linear(x)
-        return x
-
-    def getFeatures(self, x, device, batch_size = 64):
-        
-        self.features.eval()
-        self.linear.eval()
-        
-        dataset = TensorDataset(torch.from_numpy(x).to(torch.float))
-        loader = DataLoader(dataset, batch_size=batch_size)
-        
-        with torch.no_grad():
-            output = []
-            for batch in loader:
-                x = batch[0]
-                x = getRandomSlides(x, self.length)
-                x = torch.from_numpy(x)
-                x = x.to(device)
-                x = self.features(x)
-
-                output.append(x)
-                
-            output = torch.cat(output, dim=0)
-        return output.cpu().numpy()
-
-    def encode(self, x, device, batch_size = 64):
-        
-        self.features.eval()
-        self.linear.eval()
-        
-        dataset = TensorDataset(torch.from_numpy(x).to(torch.float))
-        loader = DataLoader(dataset, batch_size=batch_size)
-        
-        with torch.no_grad():
-            output = []
-            for batch in loader:
-                x = batch[0]
-                x = getRandomSlides(x, self.length)
-                x = torch.from_numpy(x)
-                x = x.to(device)
-                x = self.features(x)
-                # x = self.linear(x)
-
-                output.append(x)
-                
-            output = torch.cat(output, dim=0)
-        return output.cpu().numpy()
 
 def train_batch(model, data, optimizer, criterion, device, win_len, supervised= True, mode='subsequences'):
     model.features.train()
