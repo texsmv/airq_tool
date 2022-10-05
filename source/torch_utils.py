@@ -2,7 +2,7 @@
 # sys.path.insert(0, '/home/texs/Documentos/Repositories/mts_feature_learning/source')
 
 from torch_snippets import *
-from source.models.contrastive.models import LSTMSiameseNetwork, SiameseNetwork, SiameseNetworkMH, train_batch, eval_batch, train_batch_KL, eval_batch_KL
+from source.models.contrastive.models import SiameseNetwork, SiameseNetworkMH, train_batch, eval_batch, train_batch_KL, eval_batch_KL
 from source.models.contrastive.losses import ContrastiveLoss, SupConLoss, TripletLoss
 from source.models.contrastive.datasets import ContrastiveDataset
 from torch.utils.data import DataLoader

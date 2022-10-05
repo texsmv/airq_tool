@@ -290,10 +290,12 @@ class SiameseNetworkMH(nn.Module):
             reprs.append(repr)
             z_mus.append(z_mu)
             z_vars.append(z_var)
-            
-        repr = torch.concatenate(reprs, dim=2)
-        z_mu = torch.concatenate(z_mus, dim=2)
-        z_var = torch.concatenate(z_vars, dim=2)
+        
+        print(len(reprs))
+        print(reprs[0].shape)
+        repr = torch.cat(reprs, dim=2)
+        z_mu = torch.cat(z_mus, dim=2)
+        z_var = torch.cat(z_vars, dim=2)
         
         x = repr
             # x = self.features(x)
@@ -325,9 +327,9 @@ class SiameseNetworkMH(nn.Module):
                     z_mus.append(z_mu)
                     z_vars.append(z_var)
                     
-                repr = torch.concatenate(reprs, dim=2)
-                z_mu = torch.concatenate(z_mus, dim=2)
-                z_var = torch.concatenate(z_vars, dim=2)              
+                repr = torch.cat(reprs, dim=2)
+                z_mu = torch.cat(z_mus, dim=2)
+                z_var = torch.cat(z_vars, dim=2)              
                 x = repr
 
                 output.append(x)
@@ -363,9 +365,9 @@ class SiameseNetworkMH(nn.Module):
                     z_mus.append(z_mu)
                     z_vars.append(z_var)
                     
-                repr = torch.concatenate(reprs, dim=2)
-                z_mu = torch.concatenate(z_mus, dim=2)
-                z_var = torch.concatenate(z_vars, dim=2)              
+                repr = torch.cat(reprs, dim=2)
+                z_mu = torch.cat(z_mus, dim=2)
+                z_var = torch.cat(z_vars, dim=2)              
                 x = repr
                 # x = self.linear(x)
 
