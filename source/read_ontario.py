@@ -7,7 +7,7 @@ import io
 from .utils import dfMonthWindows, dfDailyWindows, dfYearWindows, tryFillMissing
 years = ['2010', '2011', '2012', '2013', '2014', '2015','2016', '2017', '2018', '2019', '2020']
 pollutants = ['NO', 'NOx', 'NO2', 'SO2', 'CO', 'O3', 'PM25']
-# pollutants = ['CO', 'O3']
+# pollutants = ['SO2']
 
 DB_PATH = 'datasets/ontario/'
 

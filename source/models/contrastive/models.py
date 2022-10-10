@@ -271,7 +271,7 @@ class SiameseNetworkMH(nn.Module):
         for net in self.dheads:
             net.to(device)
         # self.features = CNNFeaturesCust(in_features, device, length, feat_size, conv_filters=conv_filters, conv_kernels=conv_kernels, use_KL_regularizer=use_KL_regularizer)
-        self.linear = HeadModel(feat_size, head = head, feat_dim=encoding_size)
+        self.linear = HeadModel(feat_size * in_features, head = head, feat_dim=encoding_size)
         self.length = length
         self.in_features = in_features
         self.use_KL_regularizer = use_KL_regularizer
@@ -282,23 +282,25 @@ class SiameseNetworkMH(nn.Module):
         #     x = self.linear(x)
         #     return x, z_mu, z_var
         # else:
+        # print(x.shape)
         reprs = []
         z_mus = []
         z_vars = []
         for i in range(self.in_features):
-            repr, z_mu, z_var = self.dheads[i](x)
+            # print(torch.unsqueeze(x[:,i,:], 1).shape)
+            repr, z_mu, z_var = self.dheads[i](torch.unsqueeze(x[:,i,:], 1))
             reprs.append(repr)
             z_mus.append(z_mu)
             z_vars.append(z_var)
         
-        print(len(reprs))
-        print(reprs[0].shape)
-        repr = torch.cat(reprs, dim=2)
-        z_mu = torch.cat(z_mus, dim=2)
-        z_var = torch.cat(z_vars, dim=2)
-        
+        # print(reprs[0].shape)
+        repr = torch.cat(reprs, dim=1)
+        z_mu = torch.cat(z_mus, dim=1)
+        z_var = torch.cat(z_vars, dim=1)
+        # print('done')
         x = repr
             # x = self.features(x)
+        # print(x.shape)
         x = self.linear(x)
         return x, z_mu, z_var
 
@@ -322,14 +324,14 @@ class SiameseNetworkMH(nn.Module):
                 z_mus = []
                 z_vars = []
                 for i in range(self.in_features):
-                    repr, z_mu, z_var = self.dheads[i](x)
+                    repr, z_mu, z_var = self.dheads[i](torch.unsqueeze(x[:,i,:], 1))
                     reprs.append(repr)
                     z_mus.append(z_mu)
                     z_vars.append(z_var)
                     
-                repr = torch.cat(reprs, dim=2)
-                z_mu = torch.cat(z_mus, dim=2)
-                z_var = torch.cat(z_vars, dim=2)              
+                repr = torch.cat(reprs, dim=1)
+                z_mu = torch.cat(z_mus, dim=1)
+                z_var = torch.cat(z_vars, dim=1)              
                 x = repr
 
                 output.append(x)
@@ -338,8 +340,9 @@ class SiameseNetworkMH(nn.Module):
         return output.cpu().numpy()
 
     def encode(self, x, device, batch_size = 64):
-        
-        self.features.eval()
+        for net in self.dheads:
+            net.eval()
+        # self.features.eval()
         self.linear.eval()
         
         dataset = TensorDataset(torch.from_numpy(x).to(torch.float))
@@ -360,14 +363,14 @@ class SiameseNetworkMH(nn.Module):
                 z_mus = []
                 z_vars = []
                 for i in range(self.in_features):
-                    repr, z_mu, z_var = self.dheads[i](x)
+                    repr, z_mu, z_var = self.dheads[i](torch.unsqueeze(x[:,i,:], 1))
                     reprs.append(repr)
                     z_mus.append(z_mu)
                     z_vars.append(z_var)
                     
-                repr = torch.cat(reprs, dim=2)
-                z_mu = torch.cat(z_mus, dim=2)
-                z_var = torch.cat(z_vars, dim=2)              
+                repr = torch.cat(reprs, dim=1)
+                z_mu = torch.cat(z_mus, dim=1)
+                z_var = torch.cat(z_vars, dim=1)              
                 x = repr
                 # x = self.linear(x)
 
@@ -413,9 +416,9 @@ def train_batch(model, data, optimizer, criterion, device, win_len, supervised= 
     
 
 def eval_batch(model, data, criterion, device, win_len, supervised= True):
-    # model.features.eval()
-    for net in model.dheads:
-        net.eval()
+    model.features.eval()
+    # for net in model.dheads:
+    #     net.eval()
     model.linear.eval()
     
     xA, xB, lA, lB = data
@@ -451,12 +454,12 @@ def VAELoss(z_mu, z_var):
     # Loss = recon_loss + kl_loss
     return kl_loss
 
-LOSS_ALPHA = 0.0005
+LOSS_ALPHA = 0.000001
 
 def train_batch_KL(model, data, optimizer, criterion, device, win_len, supervised= True, mode='subsequences'):
-    # model.features.train()
-    for net in model.dheads:
-        net.train()
+    model.features.train()
+    # for net in model.dheads:
+    #     net.train()
     model.linear.train()
     
     optimizer.zero_grad()
@@ -498,9 +501,9 @@ def train_batch_KL(model, data, optimizer, criterion, device, win_len, supervise
     
 
 def eval_batch_KL(model, data, criterion, device, win_len, supervised= True):
-    # model.features.eval()
-    for net in model.dheads:
-        net.eval()
+    model.features.eval()
+    # for net in model.dheads:
+    #     net.eval()
     model.linear.eval()
     
     xA, xB, lA, lB = data

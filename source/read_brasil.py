@@ -6,11 +6,18 @@ from .utils import dfMonthWindows, dfYearWindows
 
 DB_PATH = 'datasets/brasil/Data_AirQuality/'
 
-all_fileNames = ['BEN', 'CO', 'DV', 'DVG', 'ERT', 'MP10', 'MP25', 'NO', 'NO2', 'NOx', 'O3', 'PRESS', 'RADG', 'RADUV', 'SO2', 'TEMP', 'TOL', 'UR']
+all_fileNames = ['BEN', 'CO', 'DV', 'DVG', 'ERT', 'MP10', 'MP25', 'NO', 'MP25', 'NOx', 'O3', 'PRESS', 'RADG', 'RADUV', 'SO2', 'TEMP', 'TOL', 'UR']
 
 # Returns a Dict with levels pollutant-station-date
 # granularity can be years or months
-def read_brasil(files=all_fileNames, granularity='years'):
+def read_brasil(files=all_fileNames, granularity='years', cache=True):
+    DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}.npy'.format(granularity))
+    
+    if cache and os.path.exists(DB_CACHE_PATH):
+        windows_map = np.load(DB_CACHE_PATH, allow_pickle=True)
+        windows_map = windows_map[()]
+        return windows_map
+    
     windows_map={}
     for fname in all_fileNames:
         df = pd.read_csv(os.path.join(DB_PATH, fname))
@@ -45,5 +52,6 @@ def read_brasil(files=all_fileNames, granularity='years'):
             conc_map[station] = station_map
         windows_map[fname] = conc_map
     
+    np.save(DB_CACHE_PATH, windows_map)
     return windows_map
     

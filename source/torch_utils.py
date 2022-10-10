@@ -10,7 +10,7 @@ from source.utils import create_dir
 import torch
 import random
 
-SUBSEC_PORC = 0.95 # Porcentage of the window to be used as a sub-sequence
+SUBSEC_PORC = 0.8 # Porcentage of the window to be used as a sub-sequence
 EXP_DIR = 'experiments'
 EXPERIMENT_NAME = 'test'
 EXP_PATH = os.path.join(EXP_DIR, EXPERIMENT_NAME)
@@ -31,7 +31,7 @@ def getContrastiveFeatures(X, y, epochs = 100, batch_size = 32, head='linear', l
     else:
         subsequence_length = X.shape[2]
 
-    model      = SiameseNetworkMH(
+    model      = SiameseNetwork(
         X.shape[1], 
         subsequence_length, 
         device,

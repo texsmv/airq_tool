@@ -283,3 +283,18 @@ def create_dir(path):
       os.makedirs(path)
       print("The new directory is created!")
 
+
+
+# 3D tensor unfolding
+# Collapses the first two dimensions into one e.g. (N, D, T) -> (N x D, T)
+def unfolding_3D(X):
+    N, D, T = X.shape
+    X_u = np.zeros((N * D, T))
+    for n in range(N):
+        X_u[n * D:(n + 1) * D, :] = X[:, n, :].T
+    return X_u
+
+# Folds the an array into two a 2D array
+def folding_2D(X, N, D):
+    return X.reshape((N, D))
+    
