@@ -4,6 +4,45 @@ import random
 from scipy import interpolate
 import os
 
+class ValueLogger(object):
+    """Computes and stores the average and current value"""
+    def __init__(self, name, epoch_freq = 5):
+        self.name = name
+        self.epoch_freq = epoch_freq
+        self.reset()
+    
+    def reset(self):
+        self.avgs = []
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0.0
+        self.bestAvg = np.inf
+        
+        
+    def end_epoch(self):
+        
+        self.avgs = self.avgs + [self.avg]
+        self.val = 0
+        self.sum = 0
+        self.count = 0.0
+        if len(self.avgs) == 1 or len(self.avgs) % self.epoch_freq == 0:
+            print("Epoch[{}] {} {}: {}".format(len(self.avgs), self.name, "avg", self.avg))
+    
+        if self.bestAvg > self.avg:
+            self.bestAvg = self.avg
+            return True
+        else:
+            return False
+
+    # Updates de value history
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
 
 def smooth(x,window_len=11,window='hanning'):
     if x.ndim != 1:

@@ -2,13 +2,12 @@ import numpy as np
 import torch
 import random
 from torch.utils.data import Dataset
-
+from .augmentations import *
 
 
 def getSubsequence(x, size):
     D, T = x.shape
     b = random.randint(0, T - size) 
-    
     return x[:, b: b + size]
 
     # elif mode == 'shape':
@@ -50,7 +49,7 @@ def getSubsequence(x, size):
 #     ]
 
 class SubsequencesDataset(Dataset):
-    def __init__(self, X, subsequence_size, n_views=1):
+    def __init__(self, X, subsequence_size, n_views=2):
         self.X = X
         self.n_views = n_views
         self.subsequence_size = subsequence_size
@@ -59,4 +58,20 @@ class SubsequencesDataset(Dataset):
 
     def __getitem__(self, idx):
         # return self.X[idx] + [getSubsequence(self.X, self.subsequence_size) for i in range(self.n_views)]
-        return [self.X[idx]] + [getSubsequence(self.X[idx], self.subsequence_size) for i in range(self.n_views)]
+        return [getSubsequence(self.X[idx], self.subsequence_size) for i in range(self.n_views)]
+    
+
+class AugmentationDataset(Dataset):
+    def __init__(self, X):
+        self.X = X.transpose([0, 2, 1])
+    def __len__(self):
+        return len(self.X)
+
+    def weak_transformation(self, x):
+        return jitter(x, sigma=0.03).transpose([1, 0])
+
+    def strong_transformation(self, x):
+        return permutation(x).transpose([1, 0])
+
+    def __getitem__(self, idx):
+        return (self.X[idx].transpose([1, 0]).astype(np.float32), self.weak_transformation(self.X[idx]).astype(np.float32), self.strong_transformation(self.X[idx]).astype(np.float32))

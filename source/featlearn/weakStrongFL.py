@@ -2,12 +2,12 @@ import torch
 from torch import nn
 import numpy as np
 import torch.nn.functional as F
-from .datasets import SubsequencesDataset
+from .datasets import AugmentationDataset
 from torch.utils.data import DataLoader
 from torch_snippets import *
-from ..models.contrastive.losses import SupConLoss
+from ..models.contrastive.losses import TripletLoss
 from ..utils import ValueLogger
-
+import matplotlib.pyplot as plt
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, padding):
@@ -99,29 +99,42 @@ class SiameseNetwork(nn.Module):
         return x
         
 
-class SimClrFL():
-    def __init__(self, in_channels, in_time, filters = [16, 16, 16], kernels = [5, 5, 5], feature_size = 1024, encoding_size = 8):
+class WeakStrongFL():
+    def __init__(self, in_channels, in_time, conv_filters = [16, 16, 16], conv_kernels = [5, 5, 5]):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.time_length = int(in_time * 0.9)
-        self.net = SiameseNetwork(in_channels, self.time_length, filters, kernels, feature_size = feature_size, encoding_size = encoding_size).to(self.device)
+        self.net = SiameseNetwork(in_channels, in_time, conv_filters, conv_kernels).to(self.device)
         
+    def reviewAugmentations(self, X, batch_size = 32, ): 
+        X = X.astype(np.float32)
+        dataset = AugmentationDataset(X)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        for i, views in enumerate(dataloader):
+            anchor, weak, strong = views
+            print(anchor.shape)
+            plt.plot(anchor[0])
+            return
+            
+                
     
     def fit(self, X, batch_size = 32, epochs = 2):
         X = X.astype(np.float32)
-        dataset = SubsequencesDataset(X, self.time_length, n_views=4)
+        dataset = AugmentationDataset(X)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005)
-        criterion = SupConLoss().to(self.device)
+        criterion = TripletLoss().to(self.device)
         logs = ValueLogger("Train loss   ", epoch_freq=10)
         
         for epoch in range(epochs):
             for i, views in enumerate(dataloader):
                 optimizer.zero_grad()
-                views = [view.to(self.device) for view in views]
-                codes = [self.net(view) for view in views]
-                codes = torch.stack(codes, 1)
-                loss = criterion(codes)
+                anchor, weak, strong = views
+                anchor, weak, strong = anchor.to(self.device), weak.to(self.device), strong.to(self.device) 
+                codesAnchor = self.net(anchor)
+                codesPositive = self.net(weak)
+                codesNegative = self.net(strong)
                 
+                loss = criterion(codesAnchor, codesPositive, codesNegative)
+
                 loss.backward()
                 optimizer.step()
                 
@@ -132,7 +145,7 @@ class SimClrFL():
                 
     def encode(self, X, batch_size = 32):
         X = X.astype(np.float32)
-        dataset = SubsequencesDataset(X, self.time_length, n_views=1)
+        dataset = AugmentationDataset(X)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         
         output = []
