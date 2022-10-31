@@ -80,12 +80,12 @@ class SiameseNetwork(nn.Module):
         # Get Representations
         x = torch.flatten(x, start_dim=1)
         x = self.dense(x)
-        x = F.relu(x)
-        x = F.normalize(x, dim=1)
+        # x = F.relu(x)
+        # x = F.normalize(x, dim=1)
         
         # Get Encondings
         x = self.head(x)
-        x = F.normalize(x, dim=1)
+        # x = F.normalize(x, dim=1)
         return x
 
     def encode(self, x):
@@ -94,8 +94,8 @@ class SiameseNetwork(nn.Module):
         # Get Representations
         x = torch.flatten(x, start_dim=1)
         x = self.dense(x)
-        x = F.relu(x)
-        x = F.normalize(x, dim=1)
+        # x = F.relu(x)
+        # x = F.normalize(x, dim=1)
         return x
         
 

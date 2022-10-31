@@ -43,10 +43,12 @@ class TSerie:
         self.X, _, self.magnitudes = mts_shape_norm(self.X)
     
     def minMaxNormalizization(self, minl=[], maxl=[]):
+        _, _, self.magnitudes = mts_shape_norm(self.X)
         if len(minl) == 0:
             self.X_norm, min_l, max_l = mts_norm(self.X)
         else:
             self.X_norm, min_l, max_l = mts_norm(self.X, minl=minl, maxl=maxl)
+            
         return min_l, max_l
         
     def smooth(self, window_size = 5):
