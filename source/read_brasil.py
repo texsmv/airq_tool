@@ -46,7 +46,8 @@ def read_brasil(files=all_fileNames, granularity='years', cache=True):
                 values, dates = dfMonthWindows(df_conc)
             
             for k in range(len(values)):
-                dKey = '{}-{}'.format(dates[k].year, dates[k].month)
+                # dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
+                dKey = str(dates[k])
                 station_map[dKey] = (values[k], dates[k])
             
             conc_map[station] = station_map
