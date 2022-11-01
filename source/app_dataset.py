@@ -1,4 +1,4 @@
-from .source.read_brasil import read_brasil
+from .read_brasil import read_brasil
 
 class OntarioDataset:
     def __init__(self):
@@ -14,3 +14,7 @@ class BrasilDataset:
     
     def __init__(self, granularity='years', cache=True):
         windows_map = read_brasil(granularity='months', cache=True)
+    
+    
+    # def dateRanges(self):
+    #     return 

@@ -7,6 +7,7 @@ import io
 from .utils import dfMonthWindows, dfDailyWindows, dfYearWindows, tryFillMissing
 years = ['2010', '2011', '2012', '2013', '2014', '2015','2016', '2017', '2018', '2019', '2020']
 pollutants = ['NO', 'NOx', 'NO2', 'SO2', 'CO', 'O3', 'PM25']
+# pollutants = ['NO', 'NOx']
 # pollutants = ['SO2']
 
 DB_PATH = 'datasets/ontario/'
@@ -22,6 +23,7 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
     
     windows_map = {}
     for pollutant in pollutants:
+        print(pollutant)
         conc_map = {}
         aux_map = {}
         for i in range(len(years)):
@@ -48,13 +50,17 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
                             for k in range(len(hours)):
                                 values[index][k] = (row['H{}'.format(hours[k])])
                                 if granularity == 'daily':
+                                    
                                     dateStr = '{}T{}:00:00.000000000'.format(row['Date'], hoursD[k])
-                                    date = pd.to_datetime(dateStr, infer_datetime_format=True)
+                                    # date = pd.to_datetime(dateStr, infer_datetime_format=True)
+                                    date = np.datetime64(dateStr)
                                     dates.append(date)
                                 elif k == 0:
                                     dateStr = '{}T{}:00:00.000000000'.format(row['Date'], hoursD[k])
-                                    date = pd.to_datetime(dateStr, infer_datetime_format=True)
+                                    date = np.datetime64(dateStr)
+                                    # date = pd.to_datetime(dateStr, infer_datetime_format=True)
                                     dates.append(date)
+                                    break
                     values[values==9999]=np.nan
                     values[values==-999]=np.nan
                     if granularity != 'daily':
@@ -62,8 +68,8 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
                         values = tryFillMissing(values, maxMissing=maxMissing)
                     else:
                         values = values.flatten()
-                    #     for t in range(len(values)):
-                    #         values[t] = tryFillMissing(values[t], maxMissing=maxMissing)
+                        # for t in range(len(values)):
+                        #     values[t] = tryFillMissing(values[t], maxMissing=maxMissing)
                     
                     values = values[:len(dates)]
                     dates = np.array(dates)
@@ -97,7 +103,10 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
             elif granularity == 'daily':
                 values, dates = dfDailyWindows(df_conc)
             for k in range(len(values)):
-                dKey = '{}-{}'.format(dates[k].year, dates[k].month)
+                if granularity == 'daily':
+                    dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
+                else:    
+                    dKey = '{}-{}'.format(dates[k].year, dates[k].month)
                 station_map[dKey] = (values[k], dates[k])
             conc_map[station] = station_map
         windows_map[pollutant] = conc_map

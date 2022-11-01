@@ -110,9 +110,9 @@ def dfMonthWindows(pol_df):
     return monthlyValues, monthlyDates
 
 def dfDailyWindows(pol_df):
-    print('SHAPE')
-    print(pol_df.shape)
-    print(pol_df.head())
+    # print('SHAPE')
+    # print(pol_df.shape)
+    # print(pol_df.head())
     months = [g for n, g in pol_df.groupby(pd.Grouper(freq='D'))]
     dates = [n for n, g in pol_df.groupby(pd.Grouper(freq='D'))]
     count = 0
@@ -336,4 +336,13 @@ def unfolding_3D(X):
 # Folds the an array into two a 2D array
 def folding_2D(X, N, D):
     return X.reshape((N, D))
+
+
+def sample_data(arr, n_samples):
+    n = len(arr[0])
+    indices = np.array(list(range(n)))
+    np.random.shuffle(indices)
     
+    sampled_ind = indices[:n_samples]
+    
+    return [ar[sampled_ind] for ar in arr]
