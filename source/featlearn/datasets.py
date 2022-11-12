@@ -8,6 +8,7 @@ from .augmentations import *
 def getSubsequence(x, size):
     D, T = x.shape
     b = random.randint(0, T - size) 
+    # print(b)
     return x[:, b: b + size]
 
     # elif mode == 'shape':

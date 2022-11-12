@@ -8,6 +8,11 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
 
+
+
+
+
+
 # from source.torch_utils import getRandomSlides, getViews
 
 # Batch of shape BxDxT
@@ -391,6 +396,7 @@ def train_batch(model, data, optimizer, criterion, device, win_len, supervised= 
     xA, xB, lA, lB = data # Shape BxDxT
 
     view1, view2, view3, view4 = getViews(xA, win_len, mode=mode)
+    # print(view1.shape)
 
     B, D, T = xA.shape
 
@@ -403,6 +409,8 @@ def train_batch(model, data, optimizer, criterion, device, win_len, supervised= 
     codes2 = model(view2)
     codes3 = model(view3)
     codes4 = model(view4)
+    
+    # print(codes1)
     
     viewsCodes = torch.stack([codes1, codes2, codes3, codes4], 1)
     if supervised:
@@ -474,6 +482,7 @@ def train_batch_KL(model, data, optimizer, criterion, device, win_len, supervise
     view3 = view3.to(device)
     view4 = view4.to(device)
     
+    # print(view1.shape)
     codes1, z_mu1, z_var1  = model(view1)
     codes2, z_mu2, z_var2 = model(view2)
     codes3, z_mu3, z_var3 = model(view3)

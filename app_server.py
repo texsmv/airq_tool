@@ -2,31 +2,53 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import numpy as np
 from flask import jsonify
+import json
 
 from source.app_dataset import OntarioDataset, BrasilDataset
 
-granularity = 'months'
-dataset = BrasilDataset(granularity=granularity)
-
+dataset = None
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/datasetInfo", methods=['POST'])
-def datasetInfo():
-    global dataset
+@app.route("/datasets", methods=['POST'])
+def datasetsInfo():
+    # ontarioDataset = OntarioDataset()
+    brasilDataset = BrasilDataset()
+    
+    resp_map = {
+        # 'ontario' : {
+        #     'pollutants': ontarioDataset.all_pollutants
+        # },
+        'brasil' : {
+            'pollutants': brasilDataset.all_pollutants
+        },
+    }
+    
+    return jsonify(resp_map)
 
 
 @app.route("/loadWindows", methods=['POST'])
 def loadWindows():
     global dataset
-    dataset.common_windows(['CO', 'MP25'])
+    global granularity
+    granularity = request.form['granularity']
+    datasetName = request.form['dataset']
+    pollutants = json.loads(request.form['pollutants'])
+    
+    
+    if datasetName=='brasil':
+        dataset = BrasilDataset(granularity=granularity)
+    elif datasetName =='ontario':
+        dataset = OntarioDataset(granularity=granularity)
+    
+    dataset.common_windows(pollutants)
     
     resp_map = {}
     
     resp_map['pollutants'] = dataset.pollutants
     resp_map['stations'] = {}
     for i in range(len(dataset.window_stations)):
-        resp_map['stations'][dataset.window_station_ids[i]] = {
+        resp_map['stations'][int(dataset.window_station_ids[i])] = {
             'name': dataset.window_stations[i]
         }
     resp_map['windows'] = {}
@@ -34,7 +56,11 @@ def loadWindows():
         pol = dataset.window_pollutants[i]
         resp_map['windows'][pol] = dataset.windows[:,:,i].flatten().tolist()
     
-    print(resp_map)
+    resp_map['windows_labels'] = {
+        'dates' : dataset.window_dates.tolist(),
+        'stations': dataset.window_stations,
+    }
+    
     return jsonify(resp_map)
         
 
@@ -140,6 +166,6 @@ if __name__ == "__main__":
     host = "127.0.0.1"
     port=5000
     CORS(app)
-    jmap = loadWindows()
+    # jmap = loadWindows()
     app.run(host=host, port=port, debug=False)
     

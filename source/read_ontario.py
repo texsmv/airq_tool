@@ -68,8 +68,9 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
                         values = tryFillMissing(values, maxMissing=maxMissing)
                     else:
                         values = values.flatten()
-                        # for t in range(len(values)):
-                        #     values[t] = tryFillMissing(values[t], maxMissing=maxMissing)
+                        for t in range(len(values)):
+                            print(values[t].shape)
+                            values[t] = tryFillMissing(values[t], maxMissing=maxMissing)
                     
                     values = values[:len(dates)]
                     dates = np.array(dates)
