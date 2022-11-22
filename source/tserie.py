@@ -13,6 +13,7 @@ class TSerie:
         self.X = X
         self.X_norm = X
         self.y = y
+        self.time_features = None
         
         self.magnitudes = None
         
