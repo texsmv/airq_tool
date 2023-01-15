@@ -2,7 +2,7 @@ import os
 import numpy as np
 from datetime import datetime
 import pandas as pd
-from .utils import dfMonthWindows, dfYearWindows
+from .utils import dfMonthWindows, dfYearWindows, dfDailyWindows
 
 DB_PATH = 'datasets/brasil/Data_AirQuality/'
 
@@ -41,9 +41,11 @@ def read_brasil(files=all_fileNames, granularity='years', cache=True):
             df_conc = df_conc.set_index('date')
             
             if granularity == 'years':
-                values, dates = dfYearWindows(df_conc)    
+                values, dates = dfYearWindows(df_conc, fill_missing=True)    
             elif granularity == 'months':
-                values, dates = dfMonthWindows(df_conc)
+                values, dates = dfMonthWindows(df_conc, fill_missing=True)
+            elif granularity == 'daily':
+                values, dates = dfDailyWindows(df_conc)
             
             for k in range(len(values)):
                 # dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)

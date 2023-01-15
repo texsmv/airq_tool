@@ -3,6 +3,7 @@ import numpy as np
 import random
 from scipy import interpolate
 import os
+from scipy import stats
 
 class ValueLogger(object):
     """Computes and stores the average and current value"""
@@ -82,7 +83,7 @@ def intersection(lst1, lst2):
     lst3 = [value for value in lst1 if value in temp] 
     return lst3 
 
-def dfMonthWindows(pol_df):
+def dfMonthWindows(pol_df, fill_missing=False):
     months = [g for n, g in pol_df.groupby(pd.Grouper(freq='M'))]
     dates = [n for n, g in pol_df.groupby(pd.Grouper(freq='M'))]
     count = 0
@@ -94,13 +95,16 @@ def dfMonthWindows(pol_df):
         m_date = dates[j]
         
         
-        temp = m_df.resample('D').mean()
+        temp = m_df.resample('D').mean().to_numpy()
         
+        if fill_missing:
+            temp = tryFillMissing(temp.squeeze())
+            temp = np.expand_dims(temp, 1)
         
-        if np.count_nonzero(np.isnan(temp.to_numpy().squeeze())) == 0:
+        if np.count_nonzero(np.isnan(temp.squeeze())) == 0:
             if len(temp) < 28:
                 continue
-            monthlyValues.append(temp.to_numpy()[:28])
+            monthlyValues.append(temp[:28])
             monthlyDates.append(m_date)
         else:
             count = count + 1
@@ -110,16 +114,12 @@ def dfMonthWindows(pol_df):
     return monthlyValues, monthlyDates
 
 def dfDailyWindows(pol_df):
-    # print('SHAPE')
-    # print(pol_df.shape)
-    # print(pol_df.head())
     months = [g for n, g in pol_df.groupby(pd.Grouper(freq='D'))]
     dates = [n for n, g in pol_df.groupby(pd.Grouper(freq='D'))]
     count = 0
     monthlyValues = []
     monthlyDates = []
     yearlyDates = []
-    print(len(months))
     for j in range(len(months)):
         m_df = months[j]
         m_date = dates[j]
@@ -128,8 +128,6 @@ def dfDailyWindows(pol_df):
         
         if np.count_nonzero(np.isnan(temp.to_numpy().squeeze())) == 0:
             if len(temp) < 24:
-                # print(temp)
-                # print(len(temp))
                 continue
             monthlyValues.append(temp.to_numpy())
             monthlyDates.append(m_date)
@@ -140,7 +138,7 @@ def dfDailyWindows(pol_df):
     
     return monthlyValues, monthlyDates
 
-def dfYearWindows(pol_df):
+def dfYearWindows(pol_df, fill_missing=False):
     years = [g for n, g in pol_df.groupby(pd.Grouper(freq='Y'))]
     dates = [n for n, g in pol_df.groupby(pd.Grouper(freq='Y'))]
     count = 0
@@ -151,23 +149,33 @@ def dfYearWindows(pol_df):
         m_df = years[j]
         m_date = dates[j]
         
-        temp = m_df.resample('D').mean()
+        temp = m_df.resample('D').mean().to_numpy()
         
+        if fill_missing:
+            temp = tryFillMissing(temp.squeeze())
+            temp = np.expand_dims(temp, 1)
         
-        if np.count_nonzero(np.isnan(temp.to_numpy().squeeze())) == 0:
+        if np.count_nonzero(np.isnan(temp.squeeze())) == 0:
             if len(temp) < 365:
                 continue
-            values.append(temp.to_numpy()[:365])
+            values.append(temp[:365])
             yearlyDates.append(m_date)
         else:
             count = count + 1
     values = np.array(values)
     yearlyDates = np.array(yearlyDates)
     
+    # print('Missing values size: {}'.format(count))
+    
     return values, yearlyDates
 
 
-
+def getAllStations(windows_map, pollutants):
+    stations = []
+    for pol in pollutants:
+        stations = stations + list(windows_map[pol].keys()) 
+    stations = np.unique(np.array(stations))
+    return stations
 
 def commonWindows(windows_map,  pollutants):
     # ---------------------------------Get list of filtered stations---------------------------
@@ -346,3 +354,40 @@ def sample_data(arr, n_samples):
     sampled_ind = indices[:n_samples]
     
     return [ar[sampled_ind] for ar in arr]
+
+
+
+def fdaOutlier(X):
+    
+    dts = np.transpose(X)
+    median_vec = np.median(dts, axis=1)
+    mad_vec = stats.median_abs_deviation(dts, axis=1)
+    dir_out_matrix = np.subtract(dts.transpose(), median_vec) / mad_vec
+    mean_dir_out = np.mean(dir_out_matrix, axis=1)
+    var_dir_out = np.var(dir_out_matrix, axis=1)
+    
+    return mean_dir_out, var_dir_out
+    
+
+station_locations = {
+    'Capão Redondo': (-23.6719026,-46.7794354),
+    'Cerqueira César': (-23.0353135,-49.1650519),
+    'Cid.Universitária-USP-Ipen': (-23.557594299316406,-46.71200180053711),
+    'Congonhas': (-20.5015168,-43.8564586),
+    'Ibirapuera': (-14.8428108,-40.8546285),
+    'Interlagos': (-23.7019315,-46.6967078),
+    'Itaim Paulista': (-23.5017648,-46.3996091),
+    'Itaquera': (-23.5360799,-46.4555099),
+    'Marg.Tietê-Pte Remédios': (-23.516924,-46.733631),
+    'Mooca': (-23.5606808,-46.5971924),
+    'N.Senhora do Ó': (-8.4720591,-35.0103062),
+    'Osasco': (-8.399660110473633,-35.06126022338867),
+    'Parelheiros': (-23.827312,-46.7277941),
+    'Parque D.Pedro II': (-23.5508698,-46.6275136),
+    'Pico do Jaraguá': (-23.4584254,-46.7670295),
+    'Pinheiros': (-23.567249,-46.7019515),
+    'Santana': (-12.979217,-44.05064),
+    'Santo Amaro': (-12.5519686,-38.7060448),
+}
+
+# def getStationGps(station):

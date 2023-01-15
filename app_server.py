@@ -6,6 +6,7 @@ import json
 import sys
 import numpy as np
 from sklearn.cluster import KMeans
+import pandas as pd
 
 from source.tserie import TSerie
 from sklearn.decomposition import PCA
@@ -14,11 +15,15 @@ from cuml.manifold import UMAP
 from ccpca import CCPCA
 from source.utils import folding_2D
 from source.app_dataset import OntarioDataset, BrasilDataset
+from source.utils import fdaOutlier
+import umap
 
 sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
 from ts2vec import TS2Vec
 
-USE_TS2VEC = True
+USE_TS2VEC = False
+MAX_WINDOWS = 5000
+UMAP_METRIC = 'euclidean'
 
 class UMAP_FL:
     def __init__(self, n_components, n_neighbors, metric = 'braycurtis', n_epochs = 1000):
@@ -87,13 +92,13 @@ CORS(app)
 
 @app.route("/datasets", methods=['POST'])
 def datasetsInfo():
-    # ontarioDataset = OntarioDataset()
+    ontarioDataset = OntarioDataset()
     brasilDataset = BrasilDataset()
     
     resp_map = {
-        # 'ontario' : {
-        #     'pollutants': ontarioDataset.all_pollutants
-        # },
+        'ontario' : {
+            'pollutants': ontarioDataset.all_pollutants
+        },
         'brasil' : {
             'pollutants': brasilDataset.all_pollutants
         },
@@ -101,41 +106,90 @@ def datasetsInfo():
     
     return jsonify(resp_map)
 
+@app.route("/correlation", methods=["POST"])
+def correlation():
+    global dataset
+    global mts
+    
+    positions = np.array(json.loads(request.form['positions']))
+    X = mts.X_orig[positions]
+    X = np.vstack(X) # To shape: N * T, D
+    
+    df = pd.DataFrame(data=X)
+    corr_matrix = df.corr().to_numpy()
+    
+    resp_map = {}
+    resp_map['correlation_matrix'] = corr_matrix.flatten().tolist()
+    return jsonify(resp_map)
+    
+    
 @app.route("/getProjection", methods=['POST'])
 def getProjection():
     global dataset
     global granularity
     global mts
     
-    # mts = TSerie(X=dataset.windows, y=dataset.window_station_ids)
-    # mts.smooth(window_size=8)
+    EPOCHS = 5
+    N_NEIGHBORS = 15
     
-    # mts.shapeNormalizization()
-    mts.minMaxNormalizization()
+    if granularity == 'months':
+        EPOCHS = 5
+        N_NEIGHBORS = 15
+    elif granularity == 'years':
+        EPOCHS = 15
+        N_NEIGHBORS = 5
+    elif granularity == 'daily':
+        EPOCHS = 20
+        N_NEIGHBORS = 15
     
     if not USE_TS2VEC:
-        model = UMAP_FL(n_components=2, n_neighbors=15, metric='euclidean', n_epochs = 8000)
+        
+        model = UMAP_FL(n_components=2, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)
         mts.folding_features_v1()
         mts.features = model.fit_transform(mts.features)
     else:
         model = TS2Vec(
             input_dims=mts.D,
             device=0,
-            output_dims=128,
+            output_dims=32,
+            batch_size=4
         )
-        model.fit(mts.X, verbose=True,n_epochs = 10)
-        mts.time_features = model.encode(mts.X)
-        mts.features = model.encode(mts.X, encoding_window='full_series')
+        model.fit(mts.X, verbose=True,n_epochs = EPOCHS)
+        mts.time_features = model.encode(mts.X, batch_size=4)
+        mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=4)
         
-        # print(mts.features.shape)
-        
-        reducer = UMAP(n_components=2, n_epochs=4000)
+        print(mts.features.shape)
+        # model = None
+        # reducer = UMAP(n_components=2, n_epochs=4000)
+        reducer = umap.UMAP(n_components=2)
         reducer.fit(mts.features)
         mts.features = reducer.transform(mts.features)
+        reducer = None
         
     
     resp_map = {}
     resp_map['coords'] = mts.features.flatten().tolist()
+    
+    return jsonify(resp_map)
+
+
+@app.route("/getFdaOutliers", methods=['POST'])
+def getFdaOutliers():
+    global dataset
+    global granularity
+    global mts
+    
+    pollutantPosition = request.form['pollutantPosition']
+    pollutantPosition = int(pollutantPosition)
+    
+    ts = mts.X[:, :, pollutantPosition]
+    # print(ts.shape)
+    
+    cmean, cvar = fdaOutlier(ts)
+    
+    resp_map = {}
+    resp_map['cmean'] = cmean.tolist()
+    resp_map['cvar'] = cvar.tolist()
     
     return jsonify(resp_map)
 
@@ -145,7 +199,9 @@ def kmeans():
     global granularity
     global mts
     
-    n_clusters = 5
+    n_clusters = request.form['n_clusters']
+    n_clusters = int(n_clusters)
+    
     kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
     classes = kmeans.labels_
         
@@ -165,14 +221,11 @@ def getContrastiveFeatures():
     classes = np.array(classes)
     clusters = np.unique(classes)
     
+    print('Clusters unique IDs: {}'.format(clusters))
+    
     modelCL = UMAP_CFL()
     if USE_TS2VEC:
-        # reducer = PCA(n_components=1)
-        # print(mts.time_features.shape)
-        # mts.time_features = reducer.fit_transform(mts.time_features)
-        # print(mts.time_features.shape)
         
-        # modelCL.features = mts.time_features
         print(mts.time_features.shape)
         modelCL.fit_transform(mts.time_features)
         fcs = modelCL.contrast(classes, clusters)
@@ -196,6 +249,12 @@ def loadWindows():
     granularity = request.form['granularity']
     datasetName = request.form['dataset']
     pollutants = json.loads(request.form['pollutants'])
+    smoothWindow = int(request.form['smoothWindow'])
+    shapeNorm = request.form['shapeNorm'] == 'true'
+    
+    
+    print('Loading dataset: {} with granularity {}'.format(datasetName, granularity))
+    print('Pollutants: {}'.format(pollutants))
     
     
     if datasetName=='brasil':
@@ -203,7 +262,11 @@ def loadWindows():
     elif datasetName =='ontario':
         dataset = OntarioDataset(granularity=granularity)
     
-    dataset.common_windows(pollutants)
+    
+    
+    dataset.common_windows(pollutants, max_windows=MAX_WINDOWS)
+    
+    
     
     resp_map = {}
     
@@ -219,8 +282,14 @@ def loadWindows():
     
     resp_map['windows'] = {}
     
+    
     mts = TSerie(X=dataset.windows, y=dataset.window_station_ids)
-    mts.smooth(window_size=8)
+    mts.smooth(window_size=smoothWindow)
+    
+    resp_map['windows_labels'] = {
+        'dates' : dataset.window_dates.tolist(),
+        'stations': dataset.window_station_ids.tolist(),
+    }
     
     
     for i in range(len(dataset.window_pollutants)):
@@ -231,6 +300,21 @@ def loadWindows():
         'dates' : dataset.window_dates.tolist(),
         'stations': dataset.window_station_ids.tolist(),
     }
+    
+    
+    if shapeNorm:
+        print('Normalizing')
+        X_norm, _ = mts.shapeNormalizization(returnValues=True)
+        print('Normalizing done')
+    else:
+        X_norm, _, _ = mts.minMaxNormalizization(returnValues=True)
+
+    resp_map['proc_windows'] = {}
+    for i in range(len(dataset.window_pollutants)):
+        pol = dataset.window_pollutants[i]
+        resp_map['proc_windows'][pol] = X_norm[:,:,i].flatten().tolist()
+    
+    
     
     return jsonify(resp_map)
         

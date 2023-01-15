@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import numpy as np
 import torch.nn.functional as F
-from .datasets import SubsequencesDataset
+from .datasets import SubsequencesDataset, MagnitudesDataset
 from torch.utils.data import DataLoader
 from torch_snippets import *
 from ..models.contrastive.losses import SupConLoss
@@ -150,20 +150,30 @@ class SiameseNetwork(nn.Module):
             
         
 class SimClrFL():
-    def __init__(self, in_channels, in_time, filters = [16, 16, 16], kernels = [5, 5, 5], feature_size = 1024, encoding_size = 8):
+    def __init__(self, in_channels, in_time, use_shape=False, filters = [16, 16, 16], kernels = [5, 5, 5], feature_size = 1024, encoding_size = 8):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.time_length = int(in_time * 0.8)
+        self.sigma = 0.04
         # self.net = SiameseNetwork(in_channels, self.time_length, self.device, head='linear',conv_filters= filters,conv_kernels= kernels, feat_size = feature_size, encoding_size = encoding_size, use_KL_regularizer=False).to(self.device)
+        self.use_shape = use_shape
+        if self.use_shape:
+            self.time_length = in_time
+        else:
+            self.time_length = int(in_time * 0.8)
         self.net = SiameseNetwork(in_channels, self.time_length, filters, kernels, feature_size = feature_size, encoding_size = encoding_size).to(self.device)
-        
     
-    def fit(self, X, batch_size = 32, epochs = 32, X_val=None):
+    def fit(self, X, batch_size = 32, epochs = 32, X_val=None, ):
         X = X.astype(np.float32)
-        dataset = SubsequencesDataset(X, self.time_length, n_views=4)
+        if self.use_shape:
+            dataset = MagnitudesDataset(X, self.sigma, n_views=4)
+        else:
+            dataset = SubsequencesDataset(X, self.time_length, n_views=4)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         if X_val is not None:
             X_val = X_val.astype(np.float32)
-            dataset_val = SubsequencesDataset(X_val, self.time_length, n_views=4)
+            if self.use_shape:
+                dataset_val = MagnitudesDataset(X_val, self.sigma, n_views=4)
+            else:
+                dataset_val = SubsequencesDataset(X_val, self.time_length, n_views=4)
             dataloader_val = DataLoader(dataset_val, batch_size=batch_size, shuffle=True)
         optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005, weight_decay=0)
         criterion = SupConLoss().to(self.device)
@@ -207,7 +217,10 @@ class SimClrFL():
                            
     def encode(self, X, batch_size = 32):
         X = X.astype(np.float32)
-        dataset = SubsequencesDataset(X, self.time_length, n_views=1)
+        if self.use_shape:
+            dataset = MagnitudesDataset(X, self.sigma, n_views=1)
+        else:
+            dataset = SubsequencesDataset(X, self.time_length, n_views=1)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         
         output = []

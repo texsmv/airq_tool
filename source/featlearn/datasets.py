@@ -8,19 +8,13 @@ from .augmentations import *
 def getSubsequence(x, size):
     D, T = x.shape
     b = random.randint(0, T - size) 
-    # print(b)
     return x[:, b: b + size]
 
-    # elif mode == 'shape':
-    #     slides = []
-    #     for i in range(B):
-    #         slide = batch[i,:, b[i]: b[i] + size]
-    #         for j in range(D):
-    #             slide[j] = slide[j] + random.uniform(-0.1, 0.1)
-    #         slides.append(slide)
-    #     return np.array(slides).astype(np.float32)
+def getMagnitude(x, radio):
+    D, T = x.shape
+    pert = np.random.uniform(-radio, radio, [1, T])
+    return x - pert
 
-# # mode = subsequences or shape
 # def getViews(batch, size, isNumpy = False, mode = 'subsequences'):
 #     originalSlides = getRandomSlides(batch, size, isNumpy, mode = mode)
     
@@ -60,6 +54,19 @@ class SubsequencesDataset(Dataset):
     def __getitem__(self, idx):
         # return self.X[idx] + [getSubsequence(self.X, self.subsequence_size) for i in range(self.n_views)]
         return [getSubsequence(self.X[idx], self.subsequence_size) for i in range(self.n_views)]
+    
+
+class MagnitudesDataset(Dataset):
+    def __init__(self, X, sigma, n_views=2):
+        self.X = X
+        self.n_views = n_views
+        self.sigma = sigma
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        # return self.X[idx] + [getSubsequence(self.X, self.subsequence_size) for i in range(self.n_views)]
+        return [getMagnitude(self.X[idx], self.sigma).astype(np.float32) for i in range(self.n_views)]
     
 
 class AugmentationDataset(Dataset):

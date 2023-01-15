@@ -5,10 +5,8 @@ import io
 
 
 from .utils import dfMonthWindows, dfDailyWindows, dfYearWindows, tryFillMissing
-years = ['2010', '2011', '2012', '2013', '2014', '2015','2016', '2017', '2018', '2019', '2020']
+years = ['2000', '2001', '2002', '2003', '2004', '2005', '2006', '2007', '2008', '2009', '2010', '2011', '2012', '2013', '2014', '2015','2016', '2017', '2018', '2019', '2020']
 pollutants = ['NO', 'NOx', 'NO2', 'SO2', 'CO', 'O3', 'PM25']
-# pollutants = ['NO', 'NOx']
-# pollutants = ['SO2']
 
 DB_PATH = 'datasets/ontario/'
 
@@ -23,7 +21,6 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
     
     windows_map = {}
     for pollutant in pollutants:
-        print(pollutant)
         conc_map = {}
         aux_map = {}
         for i in range(len(years)):
@@ -63,24 +60,17 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
                                     break
                     values[values==9999]=np.nan
                     values[values==-999]=np.nan
+                    
                     if granularity != 'daily':
                         values = np.mean(values, axis=1)
                         values = tryFillMissing(values, maxMissing=maxMissing)
                     else:
-                        values = values.flatten()
                         for t in range(len(values)):
-                            print(values[t].shape)
                             values[t] = tryFillMissing(values[t], maxMissing=maxMissing)
-                    
+                        values = values.flatten()
+                            
                     values = values[:len(dates)]
                     dates = np.array(dates)
-                    # print(dates)
-                    # print(values)
-                    # print('---')
-                    # print('Values shape: {}'.format(values.shape))
-                    # print('Dates shape: {}'.format(dates.shape))
-                    # print('---')
-                    # return 
                     
                     if  station not in aux_map:
                         aux_map[station] = {}
@@ -98,19 +88,51 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
             df_conc = pd.DataFrame({'date': pol_datetimes, 'value': values})
             df_conc = df_conc.set_index('date')
             if granularity == 'years':
-                values, dates = dfYearWindows(df_conc)    
+                values, dates = dfYearWindows(df_conc, fill_missing=False)    
             elif granularity == 'months':
-                values, dates = dfMonthWindows(df_conc)
+                values, dates = dfMonthWindows(df_conc, fill_missing=False)
             elif granularity == 'daily':
                 values, dates = dfDailyWindows(df_conc)
+
             for k in range(len(values)):
-                if granularity == 'daily':
-                    dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
-                else:    
-                    dKey = '{}-{}'.format(dates[k].year, dates[k].month)
+                # if granularity == 'daily':
+                #     dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
+                # else:    
+                #     dKey = '{}-{}'.format(dates[k].year, dates[k].month)
+                dKey = str(dates[k])
                 station_map[dKey] = (values[k], dates[k])
             conc_map[station] = station_map
         windows_map[pollutant] = conc_map
     
     np.save(DB_CACHE_PATH, windows_map)
     return windows_map
+
+
+def read_ontario_stations():
+    stations_data = {}
+    for pollutant in pollutants:
+        for i in range(len(years)):
+            with open(os.path.join(DB_PATH, "{}-{}.csv".format(pollutant, years[i])), "r") as f:
+                data = f.read()
+            slices = data.split("\n\n")
+            for slice in slices:
+                pos = slice.find('Station')
+                posID = slice.find('Station ID')
+                if pos != -1 and pos != posID:
+                    content = slice[pos:]
+                    lines = content.split("\n")
+                    station_name = lines[0].split(",")[1]
+                    latitude = lines[2].split(",")[1]
+                    longitude = lines[3].split(",")[1]
+                    s = station_name
+                    station_code = s[s.find("(")+1:s.find(")")]
+                    station_name = s.split("(")[0][:-1]
+                    
+                    stations_data[station_code] = {
+                        'name': station_name,
+                        'latitude': latitude,
+                        'longitude': longitude,
+                    }
+                    
+        
+    return stations_data
