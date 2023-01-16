@@ -1,6 +1,6 @@
 {
-    "name": "mts_visualizer",
-    "short_name": "mts_visualizer",
+    "name": "airq_ui",
+    "short_name": "airq_ui",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
