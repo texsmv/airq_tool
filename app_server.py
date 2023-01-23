@@ -22,7 +22,7 @@ sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
 from ts2vec import TS2Vec
 
 USE_TS2VEC = False
-MAX_WINDOWS = 5000
+MAX_WINDOWS = 40000
 UMAP_METRIC = 'euclidean'
 
 class UMAP_FL:
