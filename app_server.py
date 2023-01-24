@@ -12,18 +12,18 @@ from source.tserie import TSerie
 from sklearn.decomposition import PCA
 from cuml.neighbors import NearestNeighbors
 from cuml.manifold import UMAP
-from ccpca import CCPCA
+# from ccpca import CCPCA
 from source.utils import folding_2D
 from source.app_dataset import OntarioDataset, BrasilDataset
 from source.utils import fdaOutlier
 import umap
 
-sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
+sys.path.append('/home/amendoza/Documentos/Repositories/ts2vec')
 from ts2vec import TS2Vec
 
 USE_TS2VEC = False
 MAX_WINDOWS = 40000
-UMAP_METRIC = 'euclidean'
+UMAP_METRIC = 'braycurtis'
 
 class UMAP_FL:
     def __init__(self, n_components, n_neighbors, metric = 'braycurtis', n_epochs = 1000):
@@ -129,46 +129,51 @@ def getProjection():
     global granularity
     global mts
     
-    EPOCHS = 5
-    N_NEIGHBORS = 15
+    pollPositions = np.array(json.loads(request.form['pollutantsPositions']))
+    
+    
+    # EPOCHS = 5
+    N_NEIGHBORS = int(request.form['neighbors'])
     
     if granularity == 'months':
         EPOCHS = 5
-        N_NEIGHBORS = 15
+        # N_NEIGHBORS = 30
     elif granularity == 'years':
-        EPOCHS = 15
-        N_NEIGHBORS = 5
+        EPOCHS = 25
+        # N_NEIGHBORS = 5
     elif granularity == 'daily':
-        EPOCHS = 20
-        N_NEIGHBORS = 15
+        EPOCHS = 40
+        # N_NEIGHBORS = 15
     
     if not USE_TS2VEC:
         
-        model = UMAP_FL(n_components=2, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)
-        mts.folding_features_v1()
-        mts.features = model.fit_transform(mts.features)
+        model = UMAP_FL(n_components=32, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)
+        
+        X_filtered = mts.X[:, :, pollPositions]
+        mts_filtered = TSerie(X_filtered, mts.y)
+        mts_filtered.folding_features_v1()
+        mts.features = model.fit_transform(mts_filtered.features)
     else:
         model = TS2Vec(
             input_dims=mts.D,
             device=0,
             output_dims=32,
-            batch_size=4
+            batch_size=4,
+            depth=8,
+            hidden_dims=32,
         )
         model.fit(mts.X, verbose=True,n_epochs = EPOCHS)
         mts.time_features = model.encode(mts.X, batch_size=4)
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=4)
-        
-        print(mts.features.shape)
-        # model = None
-        # reducer = UMAP(n_components=2, n_epochs=4000)
-        reducer = umap.UMAP(n_components=2)
-        reducer.fit(mts.features)
-        mts.features = reducer.transform(mts.features)
-        reducer = None
+    
+    reducer = umap.UMAP(n_components=2, metric='cosine')
+    reducer.fit(mts.features)
+    coords = reducer.transform(mts.features)
+    reducer = None
         
     
     resp_map = {}
-    resp_map['coords'] = mts.features.flatten().tolist()
+    resp_map['coords'] = coords.flatten().tolist()
     
     return jsonify(resp_map)
 
