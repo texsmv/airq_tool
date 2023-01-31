@@ -20,14 +20,16 @@ from source.app_dataset import OntarioDataset, BrasilDataset
 from source.utils import fdaOutlier
 import umap
 
-sys.path.append('/home/amendoza/Documentos/Repositories/ts2vec')
-from ts2vec import TS2Vec
+# sys.path.append('/home/amendoza/Documentos/Repositories/ts2vec')
+# from ts2vec import TS2Vec
 
 USE_TS2VEC = False
 MAX_WINDOWS = 40000
 UMAP_METRIC = 'braycurtis'
+
 plt.rcParams["figure.figsize"] = [7.50, 3.50]
 plt.rcParams["figure.autolayout"] = True
+
 class UMAP_FL:
     def __init__(self, n_components, n_neighbors, metric = 'braycurtis', n_epochs = 1000):
         self.reducer = UMAP(n_components=n_components, n_neighbors=n_neighbors, n_epochs=n_epochs)
@@ -116,13 +118,40 @@ def correlation():
     
     positions = np.array(json.loads(request.form['positions']))
     
-    back_mts  =TSerie(mts.X_orig, None)
+    n = len(mts.X_orig)
+    back_positions = []
+    all_positions = np.arange(n)
+    for pos in all_positions:
+        if not pos in positions:
+            back_positions.append(pos)
+    back_positions = np.array(back_positions, dtype=int)
+    
+    print(all_positions.shape)
+    print(back_positions.shape)
+    print(positions.shape)
+    back_mts  =TSerie(mts.X_orig[back_positions], None)
     fore_mts  =TSerie(mts.X_orig[positions], None)
+    
+    
     back_mts.folding_features_v1()
     fore_mts.folding_features_v1()
     
     cpca = CPCA(standardize=False)
     result = cpca.fit_transform(background=back_mts.features, foreground=fore_mts.features, plot=False)
+    
+    allCoords = np.zeros((n, 2))
+    
+    allCoords[positions] = result[1]
+    
+    # result = cpca.fit_transform(background=mts.features[back_positions], foreground=mts.features[positions], plot=False)
+    coords = result[0]
+    plt.close()
+    plt.cla()
+    plt.clf()
+    print(coords.shape)
+    plt.scatter(coords[:,0],coords[:,1])
+    plt.savefig('imagetest0.png')
+    
     coords = result[1]
     plt.close()
     plt.cla()
@@ -158,6 +187,7 @@ def correlation():
     
     resp_map = {}
     resp_map['correlation_matrix'] = corr_matrix.flatten().tolist()
+    resp_map['coords'] = allCoords.flatten().tolist()
     return jsonify(resp_map)
     
     
@@ -185,11 +215,13 @@ def getProjection():
     
     if not USE_TS2VEC:
         
-        model = UMAP_FL(n_components=32, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)
         
         X_filtered = mts.X[:, :, pollPositions]
         mts_filtered = TSerie(X_filtered, mts.y)
         mts_filtered.folding_features_v1()
+        
+        # model = UMAP_FL(n_components=32, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)s
+        model = PCA(n_components=16)
         mts.features = model.fit_transform(mts_filtered.features)
     else:
         model = TS2Vec(
@@ -204,7 +236,7 @@ def getProjection():
         mts.time_features = model.encode(mts.X, batch_size=4)
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=4)
     
-    reducer = umap.UMAP(n_components=2, metric='cosine')
+    reducer = umap.UMAP(n_components=2)
     reducer.fit(mts.features)
     coords = reducer.transform(mts.features)
     reducer = None
@@ -461,7 +493,8 @@ def object():
 #     CORS(app)
 #     app.run(host=host, port=port, debug=False)
 if __name__ == "__main__":
-    host = "127.0.0.1"
+    host = "0.0.0.0"
+    # app.run(host='0.0.0.0', port=port)
     port=5000
     CORS(app)
     # jmap = loadWindows()
