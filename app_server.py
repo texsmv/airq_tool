@@ -7,6 +7,8 @@ import sys
 import numpy as np
 from sklearn.cluster import KMeans
 import pandas as pd
+from contrastive import CPCA
+import matplotlib.pyplot as plt
 
 from source.tserie import TSerie
 from sklearn.decomposition import PCA
@@ -24,7 +26,8 @@ from ts2vec import TS2Vec
 USE_TS2VEC = False
 MAX_WINDOWS = 40000
 UMAP_METRIC = 'braycurtis'
-
+plt.rcParams["figure.figsize"] = [7.50, 3.50]
+plt.rcParams["figure.autolayout"] = True
 class UMAP_FL:
     def __init__(self, n_components, n_neighbors, metric = 'braycurtis', n_epochs = 1000):
         self.reducer = UMAP(n_components=n_components, n_neighbors=n_neighbors, n_epochs=n_epochs)
@@ -112,7 +115,42 @@ def correlation():
     global mts
     
     positions = np.array(json.loads(request.form['positions']))
+    
+    back_mts  =TSerie(mts.X_orig, None)
+    fore_mts  =TSerie(mts.X_orig[positions], None)
+    back_mts.folding_features_v1()
+    fore_mts.folding_features_v1()
+    
+    cpca = CPCA(standardize=False)
+    result = cpca.fit_transform(background=back_mts.features, foreground=fore_mts.features, plot=False)
+    coords = result[1]
+    plt.close()
+    plt.cla()
+    plt.clf()
+    print(coords.shape)
+    plt.scatter(coords[:,0],coords[:,1])
+    plt.savefig('imagetest1.png')
+    
+    coords = result[2]
+    plt.close()
+    plt.cla()
+    plt.clf()
+    print(coords.shape)
+    plt.scatter(coords[:,0],coords[:,1])
+    plt.savefig('imagetest2.png')
+    
+    coords = result[3]
+    plt.close()
+    plt.cla()
+    plt.clf()
+    print(coords.shape)
+    plt.scatter(coords[:,0],coords[:,1])
+    plt.savefig('imagetest3.png')
+    
     X = mts.X_orig[positions]
+    
+    
+    
     X = np.vstack(X) # To shape: N * T, D
     
     df = pd.DataFrame(data=X)
