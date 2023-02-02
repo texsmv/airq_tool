@@ -19,13 +19,18 @@ from source.utils import folding_2D
 from source.app_dataset import OntarioDataset, BrasilDataset
 from source.utils import fdaOutlier
 import umap
+from source.featlearn.autoencoder_lr import AutoencoderFL
 
-# sys.path.append('/home/amendoza/Documentos/Repositories/ts2vec')
-# from ts2vec import TS2Vec
+sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
+from ts2vec import TS2Vec
 
-USE_TS2VEC = False
+
+MODE = 2 # 0 for umap, 1 for ts2vec, 2 for CAE
+
+# USE_TS2VEC = True
 MAX_WINDOWS = 40000
 UMAP_METRIC = 'braycurtis'
+BATCH_SIZE = 240
 
 plt.rcParams["figure.figsize"] = [7.50, 3.50]
 plt.rcParams["figure.autolayout"] = True
@@ -129,21 +134,22 @@ def correlation():
     print(all_positions.shape)
     print(back_positions.shape)
     print(positions.shape)
-    back_mts  =TSerie(mts.X_orig[back_positions], None)
-    fore_mts  =TSerie(mts.X_orig[positions], None)
+    # back_mts  =TSerie(mts.X_orig[back_positions], None)
+    # fore_mts  =TSerie(mts.X_orig[positions], None)
     
     
-    back_mts.folding_features_v1()
-    fore_mts.folding_features_v1()
+    # back_mts.folding_features_v1()
+    # fore_mts.folding_features_v1()
     
     cpca = CPCA(standardize=False)
-    result = cpca.fit_transform(background=back_mts.features, foreground=fore_mts.features, plot=False)
+    # result = cpca.fit_transform(background=back_mts.features, foreground=fore_mts.features, plot=False)
+    result = cpca.fit_transform(background=mts.features[back_positions], foreground=mts.features[positions], plot=False)
     
     allCoords = np.zeros((n, 2))
     
     allCoords[positions] = result[1]
     
-    # result = cpca.fit_transform(background=mts.features[back_positions], foreground=mts.features[positions], plot=False)
+    
     coords = result[0]
     plt.close()
     plt.cla()
@@ -204,16 +210,22 @@ def getProjection():
     N_NEIGHBORS = int(request.form['neighbors'])
     
     if granularity == 'months':
-        EPOCHS = 5
+        EPOCHS = 10
+        EPOCHS_CAE = 400
+        FEATURE_SIZE_CAE = 12 
         # N_NEIGHBORS = 30
     elif granularity == 'years':
         EPOCHS = 25
+        EPOCHS_CAE = 2000
+        FEATURE_SIZE_CAE = 30
         # N_NEIGHBORS = 5
     elif granularity == 'daily':
         EPOCHS = 40
+        EPOCHS_CAE = 400
+        FEATURE_SIZE_CAE = 8
         # N_NEIGHBORS = 15
     
-    if not USE_TS2VEC:
+    if MODE == 0:
         
         
         X_filtered = mts.X[:, :, pollPositions]
@@ -223,20 +235,26 @@ def getProjection():
         # model = UMAP_FL(n_components=32, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)s
         model = PCA(n_components=16)
         mts.features = model.fit_transform(mts_filtered.features)
-    else:
+    elif MODE == 1:
         model = TS2Vec(
             input_dims=mts.D,
             device=0,
             output_dims=32,
-            batch_size=4,
-            depth=8,
-            hidden_dims=32,
+            batch_size=BATCH_SIZE,
+            depth=10,
+            hidden_dims=128,
         )
         model.fit(mts.X, verbose=True,n_epochs = EPOCHS)
-        mts.time_features = model.encode(mts.X, batch_size=4)
-        mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=4)
+        mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
+        mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
+    else:
+        cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=320)
+        # cae = AutoencoderFL(mts.D, mts.T, feature_size=16)
+        # cae.fit(mts.X, epochs=200, batch_size=320)
+        _, mts.features = cae.encode(mts.X)
     
-    reducer = umap.UMAP(n_components=2)
+    reducer = umap.UMAP(n_components=2, metric='cosine')
     reducer.fit(mts.features)
     coords = reducer.transform(mts.features)
     reducer = None
