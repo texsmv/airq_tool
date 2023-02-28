@@ -162,6 +162,10 @@ cython_debug/
 
 
 datasets/
+datasets2/
 
 server/datasets
 
+*.png
+*.tar.xz
+*.pt

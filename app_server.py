@@ -19,7 +19,7 @@ from source.utils import folding_2D
 from source.app_dataset import OntarioDataset, BrasilDataset
 from source.utils import fdaOutlier
 import umap
-from source.featlearn.autoencoder_lr import AutoencoderFL
+from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
 
 sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
 from ts2vec import TS2Vec
@@ -97,6 +97,7 @@ class UMAP_CFL:
 
 dataset = None
 mts = None
+g_coords = None
 app = Flask(__name__)
 CORS(app)
 
@@ -202,6 +203,7 @@ def getProjection():
     global dataset
     global granularity
     global mts
+    global g_coords
     
     pollPositions = np.array(json.loads(request.form['pollutantsPositions']))
     
@@ -249,14 +251,19 @@ def getProjection():
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
     else:
         cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        # cae = VAE_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        # cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
         cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=320)
-        # cae = AutoencoderFL(mts.D, mts.T, feature_size=16)
-        # cae.fit(mts.X, epochs=200, batch_size=320)
+        # cae.fit(mts.X, epochs=400, batch_size=320, gamma=10)
+        # cae.fit(mts.X, epochs=500, batch_size=320)
         _, mts.features = cae.encode(mts.X)
+        # _, mts.features, clusters = cae.encode(mts.X)
     
-    reducer = umap.UMAP(n_components=2, metric='cosine')
+    # reducer = umap.UMAP(n_components=2, metric='euclidean')
+    reducer = umap.UMAP(n_components=2, metric='euclidean')
     reducer.fit(mts.features)
     coords = reducer.transform(mts.features)
+    g_coords = coords
     reducer = None
         
     
@@ -291,11 +298,13 @@ def kmeans():
     global dataset
     global granularity
     global mts
+    global g_coords
     
     n_clusters = request.form['n_clusters']
     n_clusters = int(n_clusters)
     
-    kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
+    # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(g_coords)
     classes = kmeans.labels_
         
     resp_map = {}
