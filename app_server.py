@@ -213,17 +213,17 @@ def getProjection():
     
     if granularity == 'months':
         EPOCHS = 10
-        EPOCHS_CAE = 400
+        EPOCHS_CAE = 1000
         FEATURE_SIZE_CAE = 12 
         # N_NEIGHBORS = 30
     elif granularity == 'years':
         EPOCHS = 25
-        EPOCHS_CAE = 2000
+        EPOCHS_CAE = 3000
         FEATURE_SIZE_CAE = 30
         # N_NEIGHBORS = 5
     elif granularity == 'daily':
         EPOCHS = 40
-        EPOCHS_CAE = 400
+        EPOCHS_CAE = 800
         FEATURE_SIZE_CAE = 8
         # N_NEIGHBORS = 15
     
@@ -250,17 +250,19 @@ def getProjection():
         mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
     else:
-        cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        # cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
         # cae = VAE_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
-        # cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
-        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=320)
-        # cae.fit(mts.X, epochs=400, batch_size=320, gamma=10)
-        # cae.fit(mts.X, epochs=500, batch_size=320)
-        _, mts.features = cae.encode(mts.X)
-        # _, mts.features, clusters = cae.encode(mts.X)
+        cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
+        # cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=320)
+        cae.fit(mts.X, epochs=500, batch_size=400)
+        cae.fit(mts.X, epochs=500, batch_size=400, gamma=100)
+        # _, mts.features = cae.encode(mts.X)
+        _, mts.features, clusters = cae.encode(mts.X)
+        preds = np.argmax(clusters, axis=1)
+        print(np.unique(preds, return_counts=True))
     
-    # reducer = umap.UMAP(n_components=2, metric='euclidean')
     reducer = umap.UMAP(n_components=2, metric='euclidean')
+    # reducer = umap.UMAP(n_components=2, metric='cosine')
     reducer.fit(mts.features)
     coords = reducer.transform(mts.features)
     g_coords = coords

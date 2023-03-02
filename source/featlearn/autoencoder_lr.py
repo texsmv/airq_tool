@@ -620,7 +620,7 @@ class DCEC():
         self.n_clusters = n_clusters
     
     def fit(self, X, batch_size = 32, epochs = 32, X_val=None, gamma=0):
-        print('FIT!')
+        # print('FIT!')
         X = X.astype(np.float32)
         dataset = MyDataset(X)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
@@ -630,15 +630,16 @@ class DCEC():
         #     dataset_val = MyDataset(X_val)
             # dataloader_val = DataLoader(dataset_val, batch_size=batch_size, shuffle=False)
         print('Optimizer')
-        optimizer  = optim.Adam(self.net.parameters(),lr = 0.0001)
+        optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005)
         criterion = nn.MSELoss()
         criterion_2 = nn.KLDivLoss(size_average=False)
         # gamma = 0.1
         batch = batch_size
         
-        logs = ValueLogger("Train loss   ", epoch_freq=30)
-        logs_clust = ValueLogger("Train clust loss   ", epoch_freq=30)
-        val_logs = ValueLogger("Val loss   ", epoch_freq=30)
+        logs = ValueLogger("Train loss   ", epoch_freq=50)
+        logs_rec = ValueLogger("Rec loss   ", epoch_freq=50)
+        logs_clust = ValueLogger("Train clust loss   ", epoch_freq=50)
+        val_logs = ValueLogger("Val loss   ", epoch_freq=50)
         
         early_stopper = EarlyStopper(patience=6, min_delta=0.0001)
         update_interval = 50
@@ -661,7 +662,7 @@ class DCEC():
                 
                 if (batch_num - 1) % update_interval == 0 and not (batch_num == 1 and epoch == 0):
                     # print('TARGET distribution')
-                    kmeans(self.net, copy.deepcopy(dataloader), self.device)
+                    # kmeans(self.net, copy.deepcopy(dataloader), self.device)
                     output_distribution, preds = calculate_predictions(self.net, dataloader, self.device)
                     target_distribution = target(output_distribution)
                     # print(target_distribution)
@@ -685,11 +686,11 @@ class DCEC():
                     preds_prev = np.copy(preds)
                     # print('Delta label')
                     # print(delta_label)
-                    if delta_label < tol:
-                        # utils.print_both(txt_file, 'Label divergence ' + str(delta_label) + '< tol ' + str(tol))
-                        # utils.print_both(txt_file, 'Reached tolerance threshold. Stopping training.')
-                        finished = True
-                        break
+                    # if delta_label < tol:
+                    #     # utils.print_both(txt_file, 'Label divergence ' + str(delta_label) + '< tol ' + str(tol))
+                    #     # utils.print_both(txt_file, 'Reached tolerance threshold. Stopping training.')
+                    #     finished = True
+                    #     break
 
                 tar_dist = target_distribution[((batch_num - 1) * batch):(batch_num*batch), :]
                 tar_dist = torch.from_numpy(tar_dist).to(device)
@@ -700,12 +701,14 @@ class DCEC():
                 loss_clust = gamma * criterion_2(torch.log(clusters), tar_dist) / batch
                 
                 loss = loss_rec + loss_clust
+                # loss = loss_rec
                 # loss = loss_clust
                 loss.backward()
                 optimizer.step()
                 
                 logs.update(loss.item())
                 logs_clust.update(loss_clust.item())
+                logs_rec.update(loss_rec.item())
                 
                 batch_num = batch_num + 1
                 
@@ -713,6 +716,7 @@ class DCEC():
                 self.best_epoch = epoch
                 torch.save(self.net.state_dict(), self.path)
             logs_clust.end_epoch()
+            logs_rec.end_epoch()
                     
             if early_stopper.early_stop(val_logs.avg):             
                 print('Early Stop!!!')
@@ -783,7 +787,10 @@ class VAE_FL():
                 
                 rec_loss = criterion(x, x_o)
                 kl_loss = KL_loss(z_mu, z_var)
-                loss = rec_loss + kl_loss * 0.2
+                # kl_loss.item = 0
+                
+                loss = rec_loss + kl_loss * 0.05
+                # loss = rec_loss
                 
                 loss.backward()
                 optimizer.step()
