@@ -471,8 +471,8 @@ class AutoencoderFL():
             dataloader_val = DataLoader(dataset_val, batch_size=batch_size, shuffle=True)
         optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005)
         criterion = nn.MSELoss()
-        logs = ValueLogger("Train loss   ", epoch_freq=4)
-        val_logs = ValueLogger("Val loss   ", epoch_freq=4)
+        logs = ValueLogger("Train loss   ", epoch_freq=50)
+        val_logs = ValueLogger("Val loss   ", epoch_freq=50)
         
         early_stopper = EarlyStopper(patience=6, min_delta=0.0001)
         
