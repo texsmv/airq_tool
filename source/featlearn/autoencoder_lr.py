@@ -263,7 +263,7 @@ class CNN_VAE(nn.Module):
                                      nn.BatchNorm1d(64),
                                      nn.ReLU())
 
-        self.lin1 = nn.Linear( length//8 * out_channels, repr_size)
+        # self.lin1 = nn.Linear( length//8 * out_channels, repr_size)
         self.lin2 = nn.Linear(repr_size, length//8 * out_channels)
 
         self.unpool2 = nn.MaxUnpool1d(kernel_size=2, stride=2, padding=0)
@@ -277,11 +277,24 @@ class CNN_VAE(nn.Module):
                                      nn.ReLU())
         
         self.z_dim = repr_size
-        self.linear_mu = nn.Linear(repr_size, self.z_dim)
-        self.linear_var = nn.Linear(repr_size, self.z_dim)
+        # self.linear_mu = nn.Linear(repr_size, self.z_dim)
+        # self.linear_var = nn.Linear(repr_size, self.z_dim)
+        self.linear_mu = nn.Linear(length//8 * out_channels, self.z_dim)
+        self.linear_var = nn.Linear(length//8 * out_channels, self.z_dim)
+        
         self.N = torch.distributions.Normal(0, 1)
 
-
+    def reparameterize(self, mu, logvar):
+        """
+        Reparameterization trick to sample from N(mu, var) from
+        N(0,1).
+        :param mu: (Tensor) Mean of the latent Gaussian [B x D]
+        :param logvar: (Tensor) Standard deviation of the latent Gaussian [B x D]
+        :return: (Tensor) [B x D]
+        """
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return eps * std + mu
 
     def forward(self, x):
         B = x.shape[0]
@@ -294,15 +307,15 @@ class CNN_VAE(nn.Module):
         x, indice3 = self.pool3(self.e_conv3(x))
         
         x = x.reshape(x.shape[0], -1)
-        x_encoded = self.lin1(x)
+        # x_encoded = self.lin1(x)
         
-        z_mu = self.linear_mu(x_encoded)
+        z_mu = self.linear_mu(x)
         
-        z_var = self.linear_var(x_encoded)
+        z_var = self.linear_var(x)
         
-        eps = torch.randn((B, self.z_dim)).to(self.device)
-        
-        z_sample = z_mu + torch.exp(z_var / 2) * eps
+        # eps = torch.randn((B, self.z_dim)).to(self.device)
+        # z_sample = z_mu + torch.exp(z_var / 2) * eps
+        z_sample = self.reparameterize(z_mu, z_var)
         
         
         # x_encoded = F.normalize(x_encoded, dim=1)
@@ -760,6 +773,33 @@ class VAE_FL():
         self.path = 'cae.pt'
         self.best_epoch = None
     
+    def kl_loss_function(self,
+                      mu,
+                      log_var,
+                      kld_weight
+                      ):
+        """
+        Computes the VAE loss function.
+        KL(N(\mu, \sigma), N(0, 1)) = \log \frac{1}{\sigma} + \frac{\sigma^2 + \mu^2}{2} - \frac{1}{2}
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        # recons = args[0]
+        # input = args[1]
+        # mu = args[2]
+        # log_var = args[3]
+
+        # kld_weight = kwargs['M_N'] # Account for the minibatch samples from the dataset
+        # recons_loss =F.mse_loss(recons, input)
+
+
+        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = 1), dim = 0)
+
+        loss = kld_weight * kld_loss
+        return loss
+        # return {'loss': loss, 'Reconstruction_Loss':recons_loss.detach(), 'KLD':-kld_loss.detach()}
+
     def fit(self, X, batch_size = 32, epochs = 32, X_val=None):
         X = X.astype(np.float32)
         dataset = MyDataset(X)
@@ -769,7 +809,7 @@ class VAE_FL():
             X_val = X_val.astype(np.float32)
             dataset_val = MyDataset(X_val)
             dataloader_val = DataLoader(dataset_val, batch_size=batch_size, shuffle=True)
-        optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005)
+        optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005, weight_decay=1e-8)
         criterion = nn.MSELoss()
         # kl_criterion = KL_loss
         logs = ValueLogger("Train loss   ", epoch_freq=50)
@@ -786,10 +826,11 @@ class VAE_FL():
                 x_o, _, z_mu, z_var = self.net(x)
                 
                 rec_loss = criterion(x, x_o)
-                kl_loss = KL_loss(z_mu, z_var)
+                # kl_loss = KL_loss(z_mu, z_var)
+                kl_loss = self.kl_loss_function(z_mu, z_var, 1 * (epochs / (epoch + 1)))
                 # kl_loss.item = 0
                 
-                loss = rec_loss + kl_loss * 0.05
+                loss = rec_loss + kl_loss
                 # loss = rec_loss
                 
                 loss.backward()

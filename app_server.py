@@ -17,9 +17,19 @@ from cuml.manifold import UMAP
 # from ccpca import CCPCA
 from source.utils import folding_2D
 from source.app_dataset import OntarioDataset, BrasilDataset
+from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
 from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
+from sklearn.metrics import pairwise_distances
+
+import datetime
+
+epoch = datetime.datetime.utcfromtimestamp(0)
+
+def unix_time_millis(dt):
+    return (dt - epoch).total_seconds() * 1000.0
+
 
 sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
 from ts2vec import TS2Vec
@@ -27,7 +37,7 @@ from ts2vec import TS2Vec
 
 MODE = 2 # 0 for umap, 1 for ts2vec, 2 for CAE
 
-# USE_TS2VEC = True
+USE_TS2VEC = False
 MAX_WINDOWS = 40000
 UMAP_METRIC = 'braycurtis'
 BATCH_SIZE = 240
@@ -98,6 +108,10 @@ class UMAP_CFL:
 dataset = None
 mts = None
 g_coords = None
+space_DM = None
+time_DM = None
+feature_DM = None
+
 app = Flask(__name__)
 CORS(app)
 
@@ -210,15 +224,17 @@ def getProjection():
     
     # EPOCHS = 5
     N_NEIGHBORS = int(request.form['neighbors'])
+    delta = float(request.form['delta'])
+    beta = float(request.form['beta'])
     
     if granularity == 'months':
         EPOCHS = 10
-        EPOCHS_CAE = 1000
+        EPOCHS_CAE = 800
         FEATURE_SIZE_CAE = 12 
         # N_NEIGHBORS = 30
     elif granularity == 'years':
         EPOCHS = 25
-        EPOCHS_CAE = 3000
+        EPOCHS_CAE = 2000
         FEATURE_SIZE_CAE = 30
         # N_NEIGHBORS = 5
     elif granularity == 'daily':
@@ -250,29 +266,78 @@ def getProjection():
         mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
     else:
-        # cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
         # cae = VAE_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
-        cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
-        # cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=320)
-        cae.fit(mts.X, epochs=500, batch_size=400)
-        cae.fit(mts.X, epochs=500, batch_size=400, gamma=100)
-        # _, mts.features = cae.encode(mts.X)
-        _, mts.features, clusters = cae.encode(mts.X)
-        preds = np.argmax(clusters, axis=1)
-        print(np.unique(preds, return_counts=True))
+        # cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
+        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=320)
+        # cae.fit(mts.X, epochs=500, batch_size=400)
+        # cae.fit(mts.X, epochs=500, batch_size=400, gamma=100)
+        _, mts.features = cae.encode(mts.X)
+        # _, mts.features, clusters = cae.encode(mts.X)
+        # preds = np.argmax(clusters, axis=1)
+        # print(np.unique(preds, return_counts=True))
+        
     
-    reducer = umap.UMAP(n_components=2, metric='euclidean')
+    feature_DM = pairwise_distances(mts.features, metric='cosine')
+    feature_DM = feature_DM / np.max(feature_DM)
+    
+    delta = 0.0
+    # delta = 0.001
+    beta = 0.0
+    # beta = 0.00
+    
+    distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
+    reducer = umap.UMAP(n_components=2, metric='precomputed')
+    
+    
+    # reducer = umap.UMAP(n_components=2, metric='euclidean')
     # reducer = umap.UMAP(n_components=2, metric='cosine')
-    reducer.fit(mts.features)
-    coords = reducer.transform(mts.features)
+    #  reducer.transform(mts.features)
+    coords = reducer.fit_transform(distM)
     g_coords = coords
     reducer = None
-        
+    
     
     resp_map = {}
     resp_map['coords'] = coords.flatten().tolist()
     
     return jsonify(resp_map)
+
+
+@app.route("/spatioTemporalProjection", methods=['POST'])
+def spatioTemporalProjection():
+    global dataset
+    global granularity
+    global mts
+    global g_coords
+    
+    
+    # EPOCHS = 5
+    N_NEIGHBORS = int(request.form['neighbors'])
+    
+    delta = float(request.form['delta'])
+    beta = float(request.form['beta'])
+        
+    
+    feature_DM = pairwise_distances(mts.features, metric='cosine')
+    feature_DM = feature_DM / np.max(feature_DM)
+    
+    distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
+    reducer = umap.UMAP(n_components=2, metric='precomputed', n_neighbors=N_NEIGHBORS)
+    
+    # reducer = umap.UMAP(n_components=2, metric='euclidean')
+    # reducer = umap.UMAP(n_components=2, metric='cosine')
+    #  reducer.transform(mts.features)
+    coords = reducer.fit_transform(distM)
+    g_coords = coords
+    reducer = None
+    
+    
+    resp_map = {}
+    resp_map['coords'] = coords.flatten().tolist()
+    
+    return jsonify(resp_map)
+
 
 
 @app.route("/getFdaOutliers", methods=['POST'])
@@ -350,6 +415,9 @@ def loadWindows():
     global dataset
     global granularity
     global mts
+    global space_DM
+    global time_DM
+    
     granularity = request.form['granularity']
     datasetName = request.form['dataset']
     pollutants = json.loads(request.form['pollutants'])
@@ -369,7 +437,35 @@ def loadWindows():
     
     
     dataset.common_windows(pollutants, max_windows=MAX_WINDOWS)
+    data_info = read_ontario_stations()
     
+    # Dates matrix stuff
+    dates = dataset.window_dates
+    timeInMs = np.array([unix_time_millis(d) for d in dates])
+    timeInMs = np.expand_dims(timeInMs, axis=1)
+    
+    time_DM = pairwise_distances(timeInMs)
+    time_DM = time_DM / np.max(time_DM)
+    
+    
+    # Location matrix stuff  
+    stations = dataset.window_stations_all
+    station_ids = dataset.window_station_ids
+    print(data_info)
+    print(station_ids)
+    print(stations)
+    coords = np.array([
+        [
+            float(data_info[str(stations[station_ids[i]])]['latitude']), 
+            float(data_info[str(stations[station_ids[i]])]['longitude'])
+        ]
+        for i in range(len(dates))
+    ])
+    
+    space_DM = pairwise_distances(coords)
+    space_DM = space_DM / np.max(space_DM)
+
+
     
     
     resp_map = {}

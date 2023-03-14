@@ -69,6 +69,7 @@ class OntarioDataset:
         
         self.window_pollutants = pollutants
         
+        self.window_stations_all = self.window_stations
         self.window_stations = self.window_stations[np.unique(self.window_station_ids)] 
     
     def dateRanges(self):
@@ -128,6 +129,7 @@ class BrasilDataset:
         
         self.window_pollutants = pollutants
         
+        self.window_stations_all = self.window_stations
         self.window_stations = self.window_stations[np.unique(self.window_station_ids)] 
     
     def dateRanges(self):
