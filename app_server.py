@@ -21,7 +21,10 @@ from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
 from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
+from source.featlearn.byol import BYOL_FL
 from sklearn.metrics import pairwise_distances
+from sklearn.model_selection import train_test_split
+
 
 import datetime
 
@@ -266,13 +269,18 @@ def getProjection():
         mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
     else:
-        cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        # cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
         # cae = VAE_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
         # cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
-        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=320)
+        
+        X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
+        cae = BYOL_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise')
+        
+        cae.fit(X_train, epochs=100, batch_size=320, X_val=X_val)
         # cae.fit(mts.X, epochs=500, batch_size=400)
         # cae.fit(mts.X, epochs=500, batch_size=400, gamma=100)
-        _, mts.features = cae.encode(mts.X)
+        # _, mts.features = cae.encode(mts.X)
+        mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
         # _, mts.features, clusters = cae.encode(mts.X)
         # preds = np.argmax(clusters, axis=1)
         # print(np.unique(preds, return_counts=True))
