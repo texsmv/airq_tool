@@ -21,7 +21,7 @@ from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
 from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
-from source.featlearn.byol import BYOL_FL
+from source.featlearn.byol import BYOL, BarlowTwins
 from sklearn.metrics import pairwise_distances
 from sklearn.model_selection import train_test_split
 
@@ -274,7 +274,9 @@ def getProjection():
         # cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
         
         X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
-        cae = BYOL_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise')
+        # cae = BYOL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise')
+        cae = BarlowTwins(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise')
+        
         
         cae.fit(X_train, epochs=100, batch_size=320, X_val=X_val)
         # cae.fit(mts.X, epochs=500, batch_size=400)

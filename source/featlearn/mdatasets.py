@@ -88,13 +88,48 @@ class SubsequencesFreqDataset(Dataset):
         return subsequences, ffts, self.y[idx]
 
 
+# class AugmentationsFreqDataset(Dataset):
+#     def __init__(self, X, subsequence_size, n_views=2, aug_type=None, test=False):
+#         self.X = X
+#         # self.y = y
+#         self.n_views = n_views
+#         self.subsequence_size = subsequence_size
+#         # self.Acc_res = np.linalg.norm(Acc, axis=1)
+#         self.aug_type = aug_type
+#         self.test = test
+#     def __len__(self):
+#         return len(self.X)
+
+#     def __getitem__(self, idx):
+#         subsequences = []
+#         ffts = []
+#         for i in range(self.n_views):
+#             # if self.aug_type == None or self.test:
+#             #     sub = getSubsequence(self.X[idx], self.subsequence_size)
+#             # else:
+#             sub = self.X[idx]
+#             sub = np.expand_dims(sub, axis=0)
+#             sub = torch.Tensor(sub)
+#             # print(sub.shape)
+#             # print(sub.shape)
+#             if self.aug_type != None:
+#                 sub = gen_aug(sub, ssh_type = self.aug_type).numpy().squeeze()
+#             else:
+#                 sub = sub.numpy().squeeze()
+#                 # print(sub.shape)
+                
+#                 # acc = self.Acc_res[idx]
+            
+#             subsequences.append(sub.astype(np.float32))
+#             ffts.append(np.expand_dims(np.absolute(fft(acc)), axis=0).astype(np.float32))
+#         return subsequences
+
 class AugmentationsFreqDataset(Dataset):
     def __init__(self, X, subsequence_size, n_views=2, aug_type=None, test=False):
         self.X = X
         # self.y = y
         self.n_views = n_views
         self.subsequence_size = subsequence_size
-        # self.Acc_res = np.linalg.norm(Acc, axis=1)
         self.aug_type = aug_type
         self.test = test
     def __len__(self):
@@ -103,26 +138,22 @@ class AugmentationsFreqDataset(Dataset):
     def __getitem__(self, idx):
         subsequences = []
         ffts = []
+        # self.freqs = 
         for i in range(self.n_views):
-            # if self.aug_type == None or self.test:
-            #     sub = getSubsequence(self.X[idx], self.subsequence_size)
-            # else:
-            sub = self.X[idx]
-            sub = np.expand_dims(sub, axis=0)
-            sub = torch.Tensor(sub)
-            # print(sub.shape)
-            # print(sub.shape)
-            if self.aug_type != None:
-                sub = gen_aug(sub, ssh_type = self.aug_type).numpy().squeeze()
+            if self.aug_type == None or self.test:
+                sub = getSubsequence(self.X[idx], self.subsequence_size)
             else:
-                sub = sub.numpy().squeeze()
-                # print(sub.shape)
-                
-                # acc = self.Acc_res[idx]
+                sub = self.X[idx]
+                sub = np.expand_dims(sub, axis=0)
+                sub = torch.Tensor(sub)
+                sub = gen_aug(sub, ssh_type = self.aug_type).numpy().squeeze()
             
             subsequences.append(sub.astype(np.float32))
-            # ffts.append(np.expand_dims(np.absolute(fft(acc)), axis=0).astype(np.float32))
-        return subsequences
+            ffts.append(
+                np.array( [np.absolute(fft(acc)) for acc in sub]).astype(np.float32)
+            )
+        return subsequences, ffts
+
 
 class AugmentationDataset(Dataset):
     def __init__(self, X):
