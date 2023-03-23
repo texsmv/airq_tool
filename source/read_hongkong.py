@@ -1,0 +1,68 @@
+import os
+import numpy as np
+from datetime import datetime
+import pandas as pd
+from .utils import dfMonthWindows, dfYearWindows, dfDailyWindows
+
+DB_PATH = 'datasets/HongKong/'
+
+def read_hongkong(granularity='years', cache=True):
+    DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}.npy'.format(granularity))
+    if cache and os.path.exists(DB_CACHE_PATH):
+        windows_map = np.load(DB_CACHE_PATH, allow_pickle=True)
+        windows_map = windows_map[()]
+        return windows_map
+    
+    initial_year = 1990
+    final_year = 2021
+    # final_year = 1992
+    
+    dframes = []
+    for year in range(initial_year, final_year + 1):
+        file_name = '{}_EN.xlsx'.format(year)
+        df = pd.read_excel(DB_PATH + file_name, skiprows=11)
+        dframes.append(df)
+    
+    all_df = pd.concat(dframes)
+    all_df = all_df.replace('N.A.', np.NaN)
+    
+    all_df['STATION'] = all_df['STATION'].str.upper()
+    all_df['STATION'] = all_df['STATION'].str.strip()
+    stations = all_df['STATION'].unique()
+    
+    all_df['HOUR'] = all_df['HOUR'].apply(lambda x: '{0:0>2}'.format(x - 1))
+    all_df['datetime'] = pd.to_datetime(all_df['DATE'].astype(str) + ' ' +  all_df['HOUR'].astype(str) + ':00:00')
+    
+    
+    windows_map = {}
+    for station in stations:
+        df = all_df[all_df['STATION'] == station]
+        df = df.drop(columns=['DATE', 'HOUR', 'STATION'])
+        df = df.set_index('datetime')
+        df = df.dropna(axis=1, how='all')
+        columns = df.columns
+        
+        for pol in df.columns:
+            if not pol in windows_map:
+                windows_map[pol] = {}
+            
+            station_map = {}
+            df_conc = pd.DataFrame({'date': df.index, 'value': df[pol]})
+            df_conc = df_conc.set_index('date')
+            
+            if granularity == 'years':
+                values, dates = dfYearWindows(df_conc, fill_missing=True)    
+            elif granularity == 'months':
+                values, dates = dfMonthWindows(df_conc, fill_missing=True)
+            elif granularity == 'daily':
+                values, dates = dfDailyWindows(df_conc)
+            
+            for k in range(len(values)):
+                # dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
+                dKey = str(dates[k])
+                station_map[dKey] = (values[k], dates[k])
+            windows_map[pol][station] = station_map
+            
+    np.save(DB_CACHE_PATH, windows_map)
+    return windows_map
+        

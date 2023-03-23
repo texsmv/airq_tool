@@ -427,155 +427,155 @@ class BYOL():
 
 
 
-def off_diagonal(x):
-    # return a flattened view of the off-diagonal elements of a square matrix
-    n, m = x.shape
-    assert n == m
-    return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
+# def off_diagonal(x):
+#     # return a flattened view of the off-diagonal elements of a square matrix
+#     n, m = x.shape
+#     assert n == m
+#     return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
-class BarlowTwins():
-    def __init__(self, 
-                 in_channels,
-                 in_time, 
-                 encoder = 'CNN', 
-                 feature_size = 128, 
-                 freq_feature_size = 32, 
-                 encoding_size = 8, 
-                 aug_type=None,
-                 use_frequency=True,
-        ):
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        if aug_type == None:
-            self.time_length = int(in_time * 0.8)
-        else:
-            self.time_length = in_time
-        self.aug_type = aug_type
-        self.path = 'barlow.pt'
-        self.best_epoch = None
+# # class BarlowTwins():
+#     def __init__(self, 
+#                  in_channels,
+#                  in_time, 
+#                  encoder = 'CNN', 
+#                  feature_size = 128, 
+#                  freq_feature_size = 32, 
+#                  encoding_size = 8, 
+#                  aug_type=None,
+#                  use_frequency=True,
+#         ):
+#         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#         if aug_type == None:
+#             self.time_length = int(in_time * 0.8)
+#         else:
+#             self.time_length = in_time
+#         self.aug_type = aug_type
+#         self.path = 'barlow.pt'
+#         self.best_epoch = None
 
         
-        self.net = EncodernNet(
-            in_channels, 
-            self.time_length, 
-            encoder=encoder, 
-            feature_size = feature_size, 
-            freq_feature_size=freq_feature_size, 
-            encoding_size = encoding_size, 
-            device=self.device,
-            use_frequency=use_frequency,
-        ).to(self.device)
+#         self.net = EncodernNet(
+#             in_channels, 
+#             self.time_length, 
+#             encoder=encoder, 
+#             feature_size = feature_size, 
+#             freq_feature_size=freq_feature_size, 
+#             encoding_size = encoding_size, 
+#             device=self.device,
+#             use_frequency=use_frequency,
+#         ).to(self.device)
         
-        self.bn = nn.BatchNorm1d(encoding_size, affine=False).to(self.device)
-        self.lambd = 0.0051
+#         self.bn = nn.BatchNorm1d(encoding_size, affine=False).to(self.device)
+#         self.lambd = 0.0051
         
-    def loss(self, z1, z2, bs):
-        # empirical cross-correlation matrix
-        c = self.bn(z1).T @ self.bn(z2)
+#     def loss(self, z1, z2, bs):
+#         # empirical cross-correlation matrix
+#         c = self.bn(z1).T @ self.bn(z2)
 
-        # sum the cross-correlation matrix between all gpus
-        c.div_(bs)
-        # torch.distributed.all_reduce(c)
+#         # sum the cross-correlation matrix between all gpus
+#         c.div_(bs)
+#         # torch.distributed.all_reduce(c)
 
-        on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
-        off_diag = off_diagonal(c).pow_(2).sum()
-        loss = on_diag + self.lambd * off_diag
-        return loss
+#         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
+#         off_diag = off_diagonal(c).pow_(2).sum()
+#         loss = on_diag + self.lambd * off_diag
+#         return loss
       
-    def fit(self, X,  batch_size = 32, epochs = 32, X_val=None, y_val=None,
-            vis=None, model_name='model',
-        ):
-        X = X.astype(np.float32)
-        # dataset = SubsequencesFreqDataset(X, Acc, y, self.time_length, n_views=n_views)
-        dataset = AugmentationsFreqDataset(X, self.time_length, n_views=2, aug_type=self.aug_type)
+#     def fit(self, X,  batch_size = 32, epochs = 32, X_val=None, y_val=None,
+#             vis=None, model_name='model',
+#         ):
+#         X = X.astype(np.float32)
+#         # dataset = SubsequencesFreqDataset(X, Acc, y, self.time_length, n_views=n_views)
+#         dataset = AugmentationsFreqDataset(X, self.time_length, n_views=2, aug_type=self.aug_type)
         
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        if X_val is not None:
-            X_val = X_val.astype(np.float32)
-            dataset_val = AugmentationsFreqDataset(X_val, self.time_length, n_views=2, aug_type=self.aug_type)
-            dataloader_val = DataLoader(dataset_val, batch_size=batch_size, shuffle=True)
-        optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005)
-        logs = ValueLogger("Train loss   ", epoch_freq=EPOCH_FREQ)
-        val_logs = ValueLogger("Val loss   ", epoch_freq=EPOCH_FREQ)
+#         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+#         if X_val is not None:
+#             X_val = X_val.astype(np.float32)
+#             dataset_val = AugmentationsFreqDataset(X_val, self.time_length, n_views=2, aug_type=self.aug_type)
+#             dataloader_val = DataLoader(dataset_val, batch_size=batch_size, shuffle=True)
+#         optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005)
+#         logs = ValueLogger("Train loss   ", epoch_freq=EPOCH_FREQ)
+#         val_logs = ValueLogger("Val loss   ", epoch_freq=EPOCH_FREQ)
         
-        early_stopper = EarlyStopper(patience=20, min_delta=0.0002)
-        best_loss = np.inf
-        for epoch in range(epochs):
-            for i, data in enumerate(dataloader):
-                self.net.train()
-                optimizer.zero_grad()
+#         early_stopper = EarlyStopper(patience=20, min_delta=0.0002)
+#         best_loss = np.inf
+#         for epoch in range(epochs):
+#             for i, data in enumerate(dataloader):
+#                 self.net.train()
+#                 optimizer.zero_grad()
                 
-                views, views_freq = data
-                views = torch.stack([view.to(self.device) for view in views])
-                views_freq = torch.stack([view.to(self.device) for view in views_freq])
-                zs = [self.net(views[i], views_freq[i]) for i in range(len(views))]
+#                 views, views_freq = data
+#                 views = torch.stack([view.to(self.device) for view in views])
+#                 views_freq = torch.stack([view.to(self.device) for view in views_freq])
+#                 zs = [self.net(views[i], views_freq[i]) for i in range(len(views))]
                 
-                bs = zs[0].shape[0]
-                loss = self.loss(zs[0], zs[1], bs)
+#                 bs = zs[0].shape[0]
+#                 loss = self.loss(zs[0], zs[1], bs)
                 
-                loss.backward()
-                optimizer.step()
+#                 loss.backward()
+#                 optimizer.step()
                 
-                logs.update(loss.item())
+#                 logs.update(loss.item())
                 
             
-            logs.end_epoch()
-            # break
-            if X_val is not None:
-                with torch.no_grad():
-                    for i, data in enumerate(dataloader_val):
-                        self.net.eval()
-                        optimizer.zero_grad()
+#             logs.end_epoch()
+#             # break
+#             if X_val is not None:
+#                 with torch.no_grad():
+#                     for i, data in enumerate(dataloader_val):
+#                         self.net.eval()
+#                         optimizer.zero_grad()
                         
-                        views, views_freq = data
-                        views = torch.stack([view.to(self.device) for view in views])
-                        views_freq = torch.stack([view.to(self.device) for view in views_freq])
-                        zs = [self.net(views[i], views_freq[i]) for i in range(len(views))]
-                        bs = zs[0].shape[0]
+#                         views, views_freq = data
+#                         views = torch.stack([view.to(self.device) for view in views])
+#                         views_freq = torch.stack([view.to(self.device) for view in views_freq])
+#                         zs = [self.net(views[i], views_freq[i]) for i in range(len(views))]
+#                         bs = zs[0].shape[0]
                         
-                        loss = self.loss(zs[0], zs[1], bs)
-                        val_loss = loss.item()
+#                         loss = self.loss(zs[0], zs[1], bs)
+#                         val_loss = loss.item()
                         
-                        val_logs.update(val_loss)
-                    if val_logs.end_epoch():
-                        # print('Saving model of epoch {}'.format(epoch))
-                        self.best_epoch = epoch
-                        torch.save(self.net.state_dict(), self.path)
+#                         val_logs.update(val_loss)
+#                     if val_logs.end_epoch():
+#                         # print('Saving model of epoch {}'.format(epoch))
+#                         self.best_epoch = epoch
+#                         torch.save(self.net.state_dict(), self.path)
                     
-                    if early_stopper.early_stop(val_logs.avg):             
-                        print('Early Stop!!!')
-                        break
-            if vis != None:
-                x = np.arange(len(logs.avgs))
-                title = 'Loss - {}'.format(model_name)
-                vis.line(logs.avgs, x, name='Train', win=title, 
-                         opts=dict(
-                            title=title,
-                            legend=["Train","Val"],
-                        )
-                )
-                vis.line(val_logs.avgs, x, name='Validation', win=title, update="append")
-        if X_val is not None:
-            return logs, val_logs
-        else:
-            return logs
+#                     if early_stopper.early_stop(val_logs.avg):             
+#                         print('Early Stop!!!')
+#                         break
+#             if vis != None:
+#                 x = np.arange(len(logs.avgs))
+#                 title = 'Loss - {}'.format(model_name)
+#                 vis.line(logs.avgs, x, name='Train', win=title, 
+#                          opts=dict(
+#                             title=title,
+#                             legend=["Train","Val"],
+#                         )
+#                 )
+#                 vis.line(val_logs.avgs, x, name='Validation', win=title, update="append")
+#         if X_val is not None:
+#             return logs, val_logs
+#         else:
+#             return logs
                            
-    def encode(self, X, batch_size = 32):
-        # print('Loading model of epoch {}'.format(self.best_epoch))
-        self.net.load_state_dict(torch.load(self.path))
-        self.net.eval()
+#     def encode(self, X, batch_size = 32):
+#         # print('Loading model of epoch {}'.format(self.best_epoch))
+#         self.net.load_state_dict(torch.load(self.path))
+#         self.net.eval()
         
-        X = X.astype(np.float32)
-        dataset = AugmentationsFreqDataset(X,  self.time_length, n_views=1, test=True)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+#         X = X.astype(np.float32)
+#         dataset = AugmentationsFreqDataset(X,  self.time_length, n_views=1, test=True)
+#         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         
-        output = []
-        with torch.torch.no_grad():
-            for i, data in enumerate(dataloader):
-                views, views_freq = data
-                view = views[0].to(self.device)
-                view_freq = views_freq[0].to(self.device)
+#         output = []
+#         with torch.torch.no_grad():
+#             for i, data in enumerate(dataloader):
+#                 views, views_freq = data
+#                 view = views[0].to(self.device)
+#                 view_freq = views_freq[0].to(self.device)
                 
-                repr = self.net.encode(view, view_freq)
-                output.append(repr)
-            output = torch.cat(output, dim=0)
-        return output.cpu().numpy()
+#                 repr = self.net.encode(view, view_freq)
+#                 output.append(repr)
+#             output = torch.cat(output, dim=0)
+#         return output.cpu().numpy()

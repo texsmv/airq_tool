@@ -16,12 +16,12 @@ from cuml.neighbors import NearestNeighbors
 from cuml.manifold import UMAP
 # from ccpca import CCPCA
 from source.utils import folding_2D
-from source.app_dataset import OntarioDataset, BrasilDataset
+from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
 from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
-from source.featlearn.byol import BYOL, BarlowTwins
+from source.featlearn.byol import BYOL
 from sklearn.metrics import pairwise_distances
 from sklearn.model_selection import train_test_split
 
@@ -122,6 +122,7 @@ CORS(app)
 def datasetsInfo():
     ontarioDataset = OntarioDataset()
     brasilDataset = BrasilDataset()
+    hongkongDataset = HongKongDataset()
     
     resp_map = {
         'ontario' : {
@@ -130,6 +131,9 @@ def datasetsInfo():
         'brasil' : {
             'pollutants': brasilDataset.all_pollutants
         },
+        'hongkong':{
+            'pollutants': hongkongDataset.all_pollutants
+        }
     }
     
     return jsonify(resp_map)
@@ -149,9 +153,6 @@ def correlation():
             back_positions.append(pos)
     back_positions = np.array(back_positions, dtype=int)
     
-    print(all_positions.shape)
-    print(back_positions.shape)
-    print(positions.shape)
     # back_mts  =TSerie(mts.X_orig[back_positions], None)
     # fore_mts  =TSerie(mts.X_orig[positions], None)
     
@@ -253,8 +254,8 @@ def getProjection():
         mts_filtered = TSerie(X_filtered, mts.y)
         mts_filtered.folding_features_v1()
         
-        # model = UMAP_FL(n_components=32, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)s
-        model = PCA(n_components=16)
+        model = UMAP_FL(n_components=32, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)
+        # model = PCA(n_components=16)
         mts.features = model.fit_transform(mts_filtered.features)
     elif MODE == 1:
         model = TS2Vec(
@@ -269,41 +270,42 @@ def getProjection():
         mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
     else:
-        # cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
         # cae = VAE_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
         # cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
         
         X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
-        # cae = BYOL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise')
-        cae = BarlowTwins(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise')
+        # cae = BYOL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise', use_frequency=False)
+        # cae = BarlowTwins(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise')
         
         
-        cae.fit(X_train, epochs=100, batch_size=320, X_val=X_val)
-        # cae.fit(mts.X, epochs=500, batch_size=400)
+        # cae.fit(X_train, epochs=200, batch_size=320, X_val=X_val)
+        # mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
+        
         # cae.fit(mts.X, epochs=500, batch_size=400, gamma=100)
-        # _, mts.features = cae.encode(mts.X)
-        mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
+        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=400)
+        _, mts.features = cae.encode(mts.X)
         # _, mts.features, clusters = cae.encode(mts.X)
         # preds = np.argmax(clusters, axis=1)
         # print(np.unique(preds, return_counts=True))
         
     
-    feature_DM = pairwise_distances(mts.features, metric='cosine')
-    feature_DM = feature_DM / np.max(feature_DM)
+    # feature_DM = pairwise_distances(mts.features, metric='cosine')
+    # feature_DM = feature_DM / np.max(feature_DM)
     
-    delta = 0.0
+    # delta = 0.0
     # delta = 0.001
-    beta = 0.0
+    # beta = 0.0
     # beta = 0.00
     
-    distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
-    reducer = umap.UMAP(n_components=2, metric='precomputed')
+    # distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
+    # reducer = umap.UMAP(n_components=2, metric='precomputed')
     
     
-    # reducer = umap.UMAP(n_components=2, metric='euclidean')
+    reducer = umap.UMAP(n_components=2, metric='euclidean')
     # reducer = umap.UMAP(n_components=2, metric='cosine')
-    #  reducer.transform(mts.features)
-    coords = reducer.fit_transform(distM)
+    coords = reducer.fit_transform(mts.features)
+    # coords = reducer.fit_transform(distM)
     g_coords = coords
     reducer = None
     
@@ -443,39 +445,44 @@ def loadWindows():
         dataset = BrasilDataset(granularity=granularity)
     elif datasetName =='ontario':
         dataset = OntarioDataset(granularity=granularity)
+    elif datasetName =='hongkong':
+        dataset = HongKongDataset(granularity=granularity)
     
-    
+    print('Dataset loaded!')
     
     dataset.common_windows(pollutants, max_windows=MAX_WINDOWS)
-    data_info = read_ontario_stations()
+    
+    print('Common windows found!')
+    # data_info = read_ontario_stations()
     
     # Dates matrix stuff
-    dates = dataset.window_dates
-    timeInMs = np.array([unix_time_millis(d) for d in dates])
-    timeInMs = np.expand_dims(timeInMs, axis=1)
+    # dates = dataset.window_dates
+    # timeInMs = np.array([unix_time_millis(d) for d in dates])
+    # timeInMs = np.expand_dims(timeInMs, axis=1)
     
-    time_DM = pairwise_distances(timeInMs)
-    time_DM = time_DM / np.max(time_DM)
+    # time_DM = pairwise_distances(timeInMs)
+    # time_DM = time_DM / np.max(time_DM)
     
+    # print('Dates matrix done')
     
     # Location matrix stuff  
-    stations = dataset.window_stations_all
-    station_ids = dataset.window_station_ids
-    print(data_info)
-    print(station_ids)
-    print(stations)
-    coords = np.array([
-        [
-            float(data_info[str(stations[station_ids[i]])]['latitude']), 
-            float(data_info[str(stations[station_ids[i]])]['longitude'])
-        ]
-        for i in range(len(dates))
-    ])
+    # stations = dataset.window_stations_all
+    # station_ids = dataset.window_station_ids
+    # print(data_info)
+    # print(station_ids)
+    # print(stations)
+    # coords = np.array([
+    #     [
+    #         float(data_info[str(stations[station_ids[i]])]['latitude']), 
+    #         float(data_info[str(stations[station_ids[i]])]['longitude'])
+    #     ]
+    #     for i in range(len(dates))
+    # ])
     
-    space_DM = pairwise_distances(coords)
-    space_DM = space_DM / np.max(space_DM)
+    # space_DM = pairwise_distances(coords)
+    # space_DM = space_DM / np.max(space_DM)
 
-
+    # print('Space matrix done')
     
     
     resp_map = {}
