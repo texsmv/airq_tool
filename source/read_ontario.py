@@ -11,8 +11,11 @@ pollutants = ['NO', 'NOx', 'NO2', 'SO2', 'CO', 'O3', 'PM25']
 
 DB_PATH = 'datasets/ontario/'
 
-def read_ontario(granularity='years', cache=True, maxMissing=0.2):
-    DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}.npy'.format(granularity))
+def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=True):
+    if fill_missing:
+        DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}_{}.npy'.format(granularity, max_missing))
+    else:
+        DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}_{}.npy'.format(granularity, 0))
     
     if cache and os.path.exists(DB_CACHE_PATH):
         windows_map = np.load(DB_CACHE_PATH, allow_pickle=True)
@@ -64,10 +67,12 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
                     
                     if granularity != 'daily':
                         values = np.mean(values, axis=1)
-                        values = tryFillMissing(values, maxMissing=maxMissing)
+                        if fill_missing:
+                            values = tryFillMissing(values,  maxMissing=max_missing)
                     else:
                         for t in range(len(values)):
-                            values[t] = tryFillMissing(values[t], maxMissing=maxMissing)
+                            if fill_missing:
+                                values[t] = tryFillMissing(values[t], maxMissing=max_missing)
                         values = values.flatten()
                             
                     values = values[:len(dates)]
@@ -89,11 +94,11 @@ def read_ontario(granularity='years', cache=True, maxMissing=0.2):
             df_conc = pd.DataFrame({'date': pol_datetimes, 'value': values})
             df_conc = df_conc.set_index('date')
             if granularity == 'years':
-                values, dates = dfYearWindows(df_conc, fill_missing=False)    
+                values, dates = dfYearWindows(df_conc, fill_missing=fill_missing, maxMissing=max_missing)    
             elif granularity == 'months':
-                values, dates = dfMonthWindows(df_conc, fill_missing=False)
+                values, dates = dfMonthWindows(df_conc, fill_missing=fill_missing, maxMissing=max_missing)
             elif granularity == 'daily':
-                values, dates = dfDailyWindows(df_conc)
+                values, dates = dfDailyWindows(df_conc, fill_missing=fill_missing, maxMissing=max_missing)
 
             for k in range(len(values)):
                 # if granularity == 'daily':

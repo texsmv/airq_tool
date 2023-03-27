@@ -47,7 +47,6 @@ CORS(app)
 
 @app.route("/loadFile", methods=['POST'])
 def reloadFile():
-    # filePath = request.get_json()["path"]
     global global_path
     filePath = global_path  
     

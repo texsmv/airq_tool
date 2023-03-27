@@ -10,8 +10,11 @@ all_fileNames = ['BEN', 'CO', 'DV', 'DVG', 'ERT', 'MP10', 'MP25', 'NO', 'MP25', 
 
 # Returns a Dict with levels pollutant-station-date
 # granularity can be years or months
-def read_brasil(files=all_fileNames, granularity='years', cache=True):
-    DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}.npy'.format(granularity))
+def read_brasil(files=all_fileNames, granularity='years', cache=True, max_missing=0.1, fill_missing=True):
+    if fill_missing:
+        DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}_{}.npy'.format(granularity, max_missing))
+    else:
+        DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}_{}.npy'.format(granularity, 0))
     
     if cache and os.path.exists(DB_CACHE_PATH):
         windows_map = np.load(DB_CACHE_PATH, allow_pickle=True)
@@ -41,11 +44,11 @@ def read_brasil(files=all_fileNames, granularity='years', cache=True):
             df_conc = df_conc.set_index('date')
             
             if granularity == 'years':
-                values, dates = dfYearWindows(df_conc, fill_missing=True)    
+                values, dates = dfYearWindows(df_conc, fill_missing=fill_missing, maxMissing=max_missing)    
             elif granularity == 'months':
-                values, dates = dfMonthWindows(df_conc, fill_missing=True)
+                values, dates = dfMonthWindows(df_conc, fill_missing=fill_missing, maxMissing=max_missing)
             elif granularity == 'daily':
-                values, dates = dfDailyWindows(df_conc)
+                values, dates = dfDailyWindows(df_conc, fill_missing=fill_missing, maxMissing=max_missing)
             
             for k in range(len(values)):
                 # dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)

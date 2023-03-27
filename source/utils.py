@@ -68,7 +68,7 @@ def fill_nan(A):
     '''
     inds = np.arange(A.shape[0])
     good = np.where(np.isfinite(A))
-    f = interpolate.interp1d(inds[good], A[good],bounds_error=False)
+    f = interpolate.interp1d(inds[good], A[good], kind='cubic', bounds_error=False)
     B = np.where(np.isfinite(A),A,f(inds))
     return B
 
@@ -83,7 +83,7 @@ def intersection(lst1, lst2):
     lst3 = [value for value in lst1 if value in temp] 
     return lst3 
 
-def dfMonthWindows(pol_df, fill_missing=False):
+def dfMonthWindows(pol_df, fill_missing=False, maxMissing=0.1):
     months = [g for n, g in pol_df.groupby(pd.Grouper(freq='M'))]
     dates = [n for n, g in pol_df.groupby(pd.Grouper(freq='M'))]
     count = 0
@@ -98,7 +98,7 @@ def dfMonthWindows(pol_df, fill_missing=False):
         temp = m_df.resample('D').mean().to_numpy()
         
         if fill_missing:
-            temp = tryFillMissing(temp.squeeze())
+            temp = tryFillMissing(temp.squeeze(), maxMissing=maxMissing)
             temp = np.expand_dims(temp, 1)
         
         if np.count_nonzero(np.isnan(temp.squeeze())) == 0:
@@ -113,7 +113,7 @@ def dfMonthWindows(pol_df, fill_missing=False):
     
     return monthlyValues, monthlyDates
 
-def dfDailyWindows(pol_df):
+def dfDailyWindows(pol_df, fill_missing=False, maxMissing=0.1):
     months = [g for n, g in pol_df.groupby(pd.Grouper(freq='D'))]
     dates = [n for n, g in pol_df.groupby(pd.Grouper(freq='D'))]
     count = 0
@@ -124,12 +124,16 @@ def dfDailyWindows(pol_df):
         m_df = months[j]
         m_date = dates[j]
         # temp = m_df.resample('D').mean()
-        temp = m_df
+        temp = m_df.to_numpy()
         
-        if np.count_nonzero(np.isnan(temp.to_numpy().squeeze())) == 0:
+        if fill_missing:
+            temp = tryFillMissing(temp.squeeze(), maxMissing=maxMissing)
+            temp = np.expand_dims(temp, 1)
+        
+        if np.count_nonzero(np.isnan(temp.squeeze())) == 0:
             if len(temp) < 24:
                 continue
-            monthlyValues.append(temp.to_numpy())
+            monthlyValues.append(temp)
             monthlyDates.append(m_date)
         else:
             count = count + 1
@@ -138,7 +142,7 @@ def dfDailyWindows(pol_df):
     
     return monthlyValues, monthlyDates
 
-def dfYearWindows(pol_df, fill_missing=False):
+def dfYearWindows(pol_df, fill_missing=False, maxMissing=0.1):
     years = [g for n, g in pol_df.groupby(pd.Grouper(freq='Y'))]
     dates = [n for n, g in pol_df.groupby(pd.Grouper(freq='Y'))]
     count = 0
@@ -152,7 +156,7 @@ def dfYearWindows(pol_df, fill_missing=False):
         temp = m_df.resample('D').mean().to_numpy()
         
         if fill_missing:
-            temp = tryFillMissing(temp.squeeze())
+            temp = tryFillMissing(temp.squeeze(), maxMissing=maxMissing)
             temp = np.expand_dims(temp, 1)
         
         if np.count_nonzero(np.isnan(temp.squeeze())) == 0:
@@ -177,17 +181,20 @@ def getAllStations(windows_map, pollutants):
     stations = np.unique(np.array(stations))
     return stations
 
-def commonWindows(windows_map,  pollutants):
+def commonWindows(windows_map,  pollutants, inStations):
     # ---------------------------------Get list of filtered stations---------------------------
     stations = []
     for pol in pollutants:
         stations = stations + list(windows_map[pol].keys()) 
     stations = np.unique(np.array(stations))
+    # stations = np.array(stations)
+    
     all_windows = []
     all_dates = []
     all_stations = []
-    for st in range(len(stations)):
-        station = stations[st]
+    st = 0
+    for station in inStations:
+        # station = stations[st]
         
         # ---------------------- Check if the station has all the pollutants--------------------
         skip = False
@@ -239,6 +246,7 @@ def commonWindows(windows_map,  pollutants):
             all_windows = np.concatenate([all_windows, station_windows],  axis = 0)
             all_dates = np.concatenate([all_dates, station_dates],  axis = 0)
             all_stations = np.concatenate([all_stations, station_ids],  axis = 0)
+        st = st + 1
     
     return all_windows, all_dates, all_stations.astype(int), stations
 

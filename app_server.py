@@ -27,7 +27,6 @@ from sklearn.model_selection import train_test_split
 
 
 import datetime
-
 epoch = datetime.datetime.utcfromtimestamp(0)
 
 def unix_time_millis(dt):
@@ -37,10 +36,12 @@ def unix_time_millis(dt):
 sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
 from ts2vec import TS2Vec
 
+MAX_MISSING = 0.1
+FILL_MISSING = False
 
 MODE = 2 # 0 for umap, 1 for ts2vec, 2 for CAE
 
-USE_TS2VEC = False
+USE_TS2VEC = True
 MAX_WINDOWS = 40000
 UMAP_METRIC = 'braycurtis'
 BATCH_SIZE = 240
@@ -120,19 +121,22 @@ CORS(app)
 
 @app.route("/datasets", methods=['POST'])
 def datasetsInfo():
-    ontarioDataset = OntarioDataset()
-    brasilDataset = BrasilDataset()
-    hongkongDataset = HongKongDataset()
+    ontarioDataset = OntarioDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    brasilDataset = BrasilDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    hongkongDataset = HongKongDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     
     resp_map = {
         'ontario' : {
-            'pollutants': ontarioDataset.all_pollutants
+            'pollutants': ontarioDataset.all_pollutants,
+            'stations': ontarioDataset.stations,
         },
         'brasil' : {
-            'pollutants': brasilDataset.all_pollutants
+            'pollutants': brasilDataset.all_pollutants,
+            'stations': brasilDataset.stations,
         },
         'hongkong':{
-            'pollutants': hongkongDataset.all_pollutants
+            'pollutants': hongkongDataset.all_pollutants,
+            'stations': hongkongDataset.stations,
         }
     }
     
@@ -169,37 +173,37 @@ def correlation():
     allCoords[positions] = result[1]
     
     
-    coords = result[0]
-    plt.close()
-    plt.cla()
-    plt.clf()
-    print(coords.shape)
-    plt.scatter(coords[:,0],coords[:,1])
-    plt.savefig('imagetest0.png')
+    # coords = result[0]
+    # plt.close()
+    # plt.cla()
+    # plt.clf()
+    # print(coords.shape)
+    # plt.scatter(coords[:,0],coords[:,1])
+    # plt.savefig('imagetest0.png')
     
-    coords = result[1]
-    plt.close()
-    plt.cla()
-    plt.clf()
-    print(coords.shape)
-    plt.scatter(coords[:,0],coords[:,1])
-    plt.savefig('imagetest1.png')
+    # coords = result[1]
+    # plt.close()
+    # plt.cla()
+    # plt.clf()
+    # print(coords.shape)
+    # plt.scatter(coords[:,0],coords[:,1])
+    # plt.savefig('imagetest1.png')
     
-    coords = result[2]
-    plt.close()
-    plt.cla()
-    plt.clf()
-    print(coords.shape)
-    plt.scatter(coords[:,0],coords[:,1])
-    plt.savefig('imagetest2.png')
+    # coords = result[2]
+    # plt.close()
+    # plt.cla()
+    # plt.clf()
+    # print(coords.shape)
+    # plt.scatter(coords[:,0],coords[:,1])
+    # plt.savefig('imagetest2.png')
     
-    coords = result[3]
-    plt.close()
-    plt.cla()
-    plt.clf()
-    print(coords.shape)
-    plt.scatter(coords[:,0],coords[:,1])
-    plt.savefig('imagetest3.png')
+    # coords = result[3]
+    # plt.close()
+    # plt.cla()
+    # plt.clf()
+    # print(coords.shape)
+    # plt.scatter(coords[:,0],coords[:,1])
+    # plt.savefig('imagetest3.png')
     
     X = mts.X_orig[positions]
     
@@ -213,6 +217,23 @@ def correlation():
     resp_map = {}
     resp_map['correlation_matrix'] = corr_matrix.flatten().tolist()
     resp_map['coords'] = allCoords.flatten().tolist()
+    
+    
+    min_values = []
+    max_values = []
+    mean_values = []
+    std_values = []
+    for d in range(mts.D):
+        min_values.append(mts.X_orig[positions,:,d].min())
+        max_values.append(mts.X_orig[positions,:,d].max())
+        mean_values.append(mts.X_orig[positions,:,d].mean())
+        std_values.append(mts.X_orig[positions,:,d].std())
+    
+    
+    resp_map['minv'] = min_values
+    resp_map['maxv'] = max_values
+    resp_map['meanv'] = mean_values
+    resp_map['stdv'] = std_values
     return jsonify(resp_map)
     
     
@@ -232,18 +253,18 @@ def getProjection():
     beta = float(request.form['beta'])
     
     if granularity == 'months':
-        EPOCHS = 10
+        EPOCHS = 20
         EPOCHS_CAE = 800
         FEATURE_SIZE_CAE = 12 
         # N_NEIGHBORS = 30
     elif granularity == 'years':
-        EPOCHS = 25
+        EPOCHS = 100
         EPOCHS_CAE = 2000
         FEATURE_SIZE_CAE = 30
         # N_NEIGHBORS = 5
     elif granularity == 'daily':
-        EPOCHS = 40
-        EPOCHS_CAE = 800
+        EPOCHS = 20
+        EPOCHS_CAE = 200
         FEATURE_SIZE_CAE = 8
         # N_NEIGHBORS = 15
     
@@ -282,7 +303,8 @@ def getProjection():
         # cae.fit(X_train, epochs=200, batch_size=320, X_val=X_val)
         # mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
         
-        # cae.fit(mts.X, epochs=500, batch_size=400, gamma=100)
+        # cae.fit(mts.X, epochs=100, batch_size=400, gamma=0)
+        # cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=400, gamma=100)
         cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=400)
         _, mts.features = cae.encode(mts.X)
         # _, mts.features, clusters = cae.encode(mts.X)
@@ -302,8 +324,8 @@ def getProjection():
     # reducer = umap.UMAP(n_components=2, metric='precomputed')
     
     
-    reducer = umap.UMAP(n_components=2, metric='euclidean')
-    # reducer = umap.UMAP(n_components=2, metric='cosine')
+    # reducer = umap.UMAP(n_components=2, metric='euclidean')
+    reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=20)
     coords = reducer.fit_transform(mts.features)
     # coords = reducer.fit_transform(distM)
     g_coords = coords
@@ -382,8 +404,8 @@ def kmeans():
     n_clusters = request.form['n_clusters']
     n_clusters = int(n_clusters)
     
-    # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
-    kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(g_coords)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
+    # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(g_coords)
     classes = kmeans.labels_
         
     resp_map = {}
@@ -433,6 +455,7 @@ def loadWindows():
     granularity = request.form['granularity']
     datasetName = request.form['dataset']
     pollutants = json.loads(request.form['pollutants'])
+    stations = json.loads(request.form['stations'])
     smoothWindow = int(request.form['smoothWindow'])
     shapeNorm = request.form['shapeNorm'] == 'true'
     
@@ -442,17 +465,15 @@ def loadWindows():
     
     
     if datasetName=='brasil':
-        dataset = BrasilDataset(granularity=granularity)
+        dataset = BrasilDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     elif datasetName =='ontario':
-        dataset = OntarioDataset(granularity=granularity)
+        dataset = OntarioDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     elif datasetName =='hongkong':
-        dataset = HongKongDataset(granularity=granularity)
+        dataset = HongKongDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     
-    print('Dataset loaded!')
+    print('Reading stations {}'.format(stations))
+    dataset.common_windows(pollutants, stations, max_windows=MAX_WINDOWS)
     
-    dataset.common_windows(pollutants, max_windows=MAX_WINDOWS)
-    
-    print('Common windows found!')
     # data_info = read_ontario_stations()
     
     # Dates matrix stuff
@@ -492,9 +513,9 @@ def loadWindows():
     resp_map['stations'] = {}
     
     
-    for i in range(len(dataset.stations)):
+    for i in range(len(dataset.window_stations)):
         resp_map['stations'][i] = {
-            'name': dataset.stations[i]
+            'name': dataset.window_stations[i]
         }
     
     resp_map['windows'] = {}
@@ -532,7 +553,7 @@ def loadWindows():
         resp_map['proc_windows'][pol] = X_norm[:,:,i].flatten().tolist()
     
     
-    
+    print(resp_map)
     return jsonify(resp_map)
         
 
