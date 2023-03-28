@@ -32,7 +32,6 @@ epoch = datetime.datetime.utcfromtimestamp(0)
 def unix_time_millis(dt):
     return (dt - epoch).total_seconds() * 1000.0
 
-
 sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
 from ts2vec import TS2Vec
 
@@ -107,8 +106,6 @@ class UMAP_CFL:
         return fcs_time
 
 
-
-
 dataset = None
 mts = None
 g_coords = None
@@ -173,38 +170,6 @@ def correlation():
     allCoords[positions] = result[1]
     
     
-    # coords = result[0]
-    # plt.close()
-    # plt.cla()
-    # plt.clf()
-    # print(coords.shape)
-    # plt.scatter(coords[:,0],coords[:,1])
-    # plt.savefig('imagetest0.png')
-    
-    # coords = result[1]
-    # plt.close()
-    # plt.cla()
-    # plt.clf()
-    # print(coords.shape)
-    # plt.scatter(coords[:,0],coords[:,1])
-    # plt.savefig('imagetest1.png')
-    
-    # coords = result[2]
-    # plt.close()
-    # plt.cla()
-    # plt.clf()
-    # print(coords.shape)
-    # plt.scatter(coords[:,0],coords[:,1])
-    # plt.savefig('imagetest2.png')
-    
-    # coords = result[3]
-    # plt.close()
-    # plt.cla()
-    # plt.clf()
-    # print(coords.shape)
-    # plt.scatter(coords[:,0],coords[:,1])
-    # plt.savefig('imagetest3.png')
-    
     X = mts.X_orig[positions]
     
     
@@ -246,11 +211,10 @@ def getProjection():
     
     pollPositions = np.array(json.loads(request.form['pollutantsPositions']))
     
-    
-    # EPOCHS = 5
     N_NEIGHBORS = int(request.form['neighbors'])
     delta = float(request.form['delta'])
     beta = float(request.form['beta'])
+    
     
     if granularity == 'months':
         EPOCHS = 20
@@ -268,9 +232,18 @@ def getProjection():
         FEATURE_SIZE_CAE = 8
         # N_NEIGHBORS = 15
     
-    if MODE == 0:
+    # n = mts.N
+    
+    # epochs = 0
+    
+    # if n < 100:
+    #     epochs = 1000
+    # elif n < 1000:
+    #     epochs = 500
+    # else:
+    #     epochs = 200
         
-        
+    if MODE == 0:    
         X_filtered = mts.X[:, :, pollPositions]
         mts_filtered = TSerie(X_filtered, mts.y)
         mts_filtered.folding_features_v1()
@@ -305,7 +278,7 @@ def getProjection():
         
         # cae.fit(mts.X, epochs=100, batch_size=400, gamma=0)
         # cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=400, gamma=100)
-        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=400)
+        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=EPOCHS_CAE)
         _, mts.features = cae.encode(mts.X)
         # _, mts.features, clusters = cae.encode(mts.X)
         # preds = np.argmax(clusters, axis=1)
@@ -552,8 +525,6 @@ def loadWindows():
         pol = dataset.window_pollutants[i]
         resp_map['proc_windows'][pol] = X_norm[:,:,i].flatten().tolist()
     
-    
-    print(resp_map)
     return jsonify(resp_map)
         
 
