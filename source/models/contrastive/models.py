@@ -7,12 +7,6 @@ from torch.utils.data import TensorDataset
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
-
-
-
-
-
-
 # from source.torch_utils import getRandomSlides, getViews
 
 # Batch of shape BxDxT
