@@ -32,8 +32,9 @@ epoch = datetime.datetime.utcfromtimestamp(0)
 def unix_time_millis(dt):
     return (dt - epoch).total_seconds() * 1000.0
 
-sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
-from ts2vec import TS2Vec
+# PATH to ST2vec repository if you want to use it
+# sys.path.append('/home/texs/Documentos/Repositories/ts2vec')
+# from ts2vec import TS2Vec
 
 MAX_MISSING = 0.1
 FILL_MISSING = False
