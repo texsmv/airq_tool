@@ -65,9 +65,12 @@ def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing
             for k in range(len(values)):
                 # dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
                 dKey = str(dates[k])
+                if pol == 'CO':
+                    values[k] = values[k] / 10.0
                 station_map[dKey] = (values[k], dates[k])
             windows_map[pol][station] = station_map
-            
+    
+    
     np.save(DB_CACHE_PATH, windows_map)
     return windows_map
         

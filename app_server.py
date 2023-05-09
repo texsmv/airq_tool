@@ -7,7 +7,7 @@ import sys
 import numpy as np
 from sklearn.cluster import KMeans
 import pandas as pd
-from contrastive import CPCA
+# from contrastive import CPCA
 import matplotlib.pyplot as plt
 
 from source.tserie import TSerie
@@ -24,6 +24,7 @@ from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
 from source.featlearn.byol import BYOL
 from sklearn.metrics import pairwise_distances
 from sklearn.model_selection import train_test_split
+import aqi
 
 
 import datetime
@@ -48,6 +49,65 @@ BATCH_SIZE = 240
 
 plt.rcParams["figure.figsize"] = [7.50, 3.50]
 plt.rcParams["figure.autolayout"] = True
+
+available_polls = ['O3', 'PM25', 'PM10', 'FSP', 'NO2', 'SO2', 'CO']
+
+
+def filter_iaqi(pollutants, values): # values shape NxD
+    out_index = []
+    for i in range(len(pollutants)):
+        if pollutants[i] in available_polls:
+            out_index.append(i)
+    return np.array(pollutants)[out_index], values[:, :, out_index]
+
+def daily_iaqi(pollutant, data):
+    if pollutant == 'O3':
+        d_mean = data.mean()
+        return aqi.to_iaqi('o3_8h', str(d_mean), algo=aqi.ALGO_MEP)
+    elif pollutant == 'PM25' or pollutant == 'FSP':
+        d_mean = data.mean()
+        return aqi.to_iaqi(aqi.POLLUTANT_PM25, str(d_mean), algo=aqi.ALGO_EPA)
+    elif pollutant == 'PM10' or pollutant == 'RSP':
+        d_mean = data.mean()
+        return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_EPA)
+    elif pollutant == 'NO2':
+        d_mean = data.mean()
+        return aqi.to_iaqi('no2_24h', str(d_mean), algo=aqi.ALGO_MEP)
+    elif pollutant == 'SO2':
+        d_mean = data.mean()
+        return aqi.to_iaqi('so2_24h', str(d_mean), algo=aqi.ALGO_MEP)
+    elif pollutant == 'CO':
+        d_mean = data.mean()
+        return aqi.to_iaqi('co_24h', str(d_mean), algo=aqi.ALGO_MEP)
+
+
+
+def get_aqi(pollutants, values): # values shape NxD
+    iaqis = []
+    for i in range(len(pollutants)):
+        pollutant = pollutants[i]
+        data = values[:, i]
+        if pollutant == 'O3':
+            d_mean = data.mean()
+            iaqis.append(('o3_8h', str(d_mean)))
+        elif pollutant == 'PM25' or pollutant == 'FSP':
+            d_mean = data.mean()
+            iaqis.append(('pm25', str(d_mean)))
+        elif pollutant == 'PM10' or pollutant == 'RSP':
+            d_mean = data.mean()
+            # return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_EPA)
+            iaqis.append(('pm10', str(d_mean)))
+        elif pollutant == 'NO2':
+            d_mean = data.mean()
+            iaqis.append(('no2_24h', str(d_mean)))
+        elif pollutant == 'SO2':
+            d_mean = data.mean()
+            iaqis.append(('so2_24h', str(d_mean)))
+        elif pollutant == 'CO':
+            d_mean = data.mean()
+            iaqis.append(('co_24h', str(d_mean)))
+    return aqi.to_aqi(iaqis, algo=aqi.ALGO_MEP)
+        
 
 class UMAP_FL:
     def __init__(self, n_components, n_neighbors, metric = 'braycurtis', n_epochs = 1000):
@@ -119,25 +179,26 @@ CORS(app)
 
 @app.route("/datasets", methods=['POST'])
 def datasetsInfo():
-    ontarioDataset = OntarioDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
-    brasilDataset = BrasilDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
-    hongkongDataset = HongKongDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    global dataset
+    # ontarioDataset = OntarioDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    # brasilDataset = BrasilDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    hongkongDataset = HongKongDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='daily')
     
     resp_map = {
-        'ontario' : {
-            'pollutants': ontarioDataset.all_pollutants,
-            'stations': ontarioDataset.stations,
-        },
-        'brasil' : {
-            'pollutants': brasilDataset.all_pollutants,
-            'stations': brasilDataset.stations,
-        },
+        # 'ontario' : {
+        #     'pollutants': ontarioDataset.all_pollutants,
+        #     'stations': ontarioDataset.stations,
+        # },
+        # 'brasil' : {
+        #     'pollutants': brasilDataset.all_pollutants,
+        #     'stations': brasilDataset.stations,
+        # },
         'hongkong':{
             'pollutants': hongkongDataset.all_pollutants,
             'stations': hongkongDataset.stations,
         }
     }
-    
+    dataset = hongkongDataset
     return jsonify(resp_map)
 
 @app.route("/correlation", methods=["POST"])
@@ -202,6 +263,32 @@ def correlation():
     resp_map['stdv'] = std_values
     return jsonify(resp_map)
     
+
+
+@app.route("/getIaqis", methods=['POST'])
+def getIaqis():
+    global dataset
+    global mts
+    pollutants = np.array(json.loads(request.form['pollutants']))
+    
+    filtered_pollutans, filtered_windows = filter_iaqi(pollutants, mts.X_orig)
+    # print(filtered_pollutans)
+    # print(filtered_windows.shape) 
+    resp_map = {}
+    if len(filtered_pollutans) != 0:
+        resp_map['status']= 'DONE'
+        aqi = [int(get_aqi(filtered_pollutans, filtered_windows[i])) for i in range(len(filtered_windows))]
+        resp_map['aqi'] = aqi
+        # print(aqi)
+        for k in range(len(filtered_pollutans)):
+            pollutant = filtered_pollutans[k]
+            iaqi = [int(daily_iaqi(pollutant, filtered_windows[i,:,k])) for i in range(len(filtered_windows))]
+            resp_map[pollutant] = iaqi
+            # print(iaqi)
+    else:
+        resp_map['status']= 'ERROR'
+    return jsonify(resp_map)
+    
     
 @app.route("/getProjection", methods=['POST'])
 def getProjection():
@@ -233,17 +320,6 @@ def getProjection():
         FEATURE_SIZE_CAE = 8
         # N_NEIGHBORS = 15
     
-    # n = mts.N
-    
-    # epochs = 0
-    
-    # if n < 100:
-    #     epochs = 1000
-    # elif n < 1000:
-    #     epochs = 500
-    # else:
-    #     epochs = 200
-        
     if MODE == 0:    
         X_filtered = mts.X[:, :, pollPositions]
         mts_filtered = TSerie(X_filtered, mts.y)
@@ -438,12 +514,12 @@ def loadWindows():
     print('Pollutants: {}'.format(pollutants))
     
     
-    if datasetName=='brasil':
-        dataset = BrasilDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
-    elif datasetName =='ontario':
-        dataset = OntarioDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
-    elif datasetName =='hongkong':
-        dataset = HongKongDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    # if datasetName=='brasil':
+    #     dataset = BrasilDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    # elif datasetName =='ontario':
+    #     dataset = OntarioDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    # elif datasetName =='hongkong':
+    #     dataset = HongKongDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     
     print('Reading stations {}'.format(stations))
     dataset.common_windows(pollutants, stations, max_windows=MAX_WINDOWS)

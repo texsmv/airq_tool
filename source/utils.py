@@ -365,27 +365,27 @@ def sample_data(arr, n_samples):
 
 
 
-# def fdaOutlier(X):
-    
-#     dts = np.transpose(X)
-#     median_vec = np.median(dts, axis=1)
-#     mad_vec = stats.median_abs_deviation(dts, axis=1)
-#     dir_out_matrix = np.subtract(dts.transpose(), median_vec) / mad_vec
-#     mean_dir_out = np.mean(dir_out_matrix, axis=1)
-#     var_dir_out = np.var(dir_out_matrix, axis=1)
-    
-#     return mean_dir_out, var_dir_out
-    
 def fdaOutlier(X):
     
     dts = np.transpose(X)
-    # median_vec = np.median(dts, axis=1)
+    median_vec = np.median(dts, axis=1)
     mad_vec = stats.median_abs_deviation(dts, axis=1)
-    dir_out_matrix = dts.transpose() / mad_vec
+    dir_out_matrix = np.subtract(dts.transpose(), median_vec) / mad_vec
     mean_dir_out = np.mean(dir_out_matrix, axis=1)
     var_dir_out = np.var(dir_out_matrix, axis=1)
     
     return mean_dir_out, var_dir_out
+    
+# def fdaOutlier(X):
+    
+#     dts = np.transpose(X)
+#     # median_vec = np.median(dts, axis=1)
+#     mad_vec = stats.median_abs_deviation(dts, axis=1)
+#     dir_out_matrix = dts.transpose() / mad_vec
+#     mean_dir_out = np.mean(dir_out_matrix, axis=1)
+#     var_dir_out = np.var(dir_out_matrix, axis=1)
+    
+#     return mean_dir_out, var_dir_out
 
 station_locations = {
     'Capão Redondo': (-23.6719026,-46.7794354),
