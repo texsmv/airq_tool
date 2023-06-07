@@ -518,8 +518,8 @@ def loadWindows():
     #     dataset = BrasilDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     # elif datasetName =='ontario':
     #     dataset = OntarioDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
-    # elif datasetName =='hongkong':
-    #     dataset = HongKongDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    if datasetName =='hongkong':
+        dataset = HongKongDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     
     print('Reading stations {}'.format(stations))
     dataset.common_windows(pollutants, stations, max_windows=MAX_WINDOWS)
