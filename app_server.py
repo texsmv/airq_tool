@@ -15,7 +15,7 @@ from sklearn.decomposition import PCA
 from cuml.neighbors import NearestNeighbors
 from cuml.manifold import UMAP
 # from ccpca import CCPCA
-from source.utils import folding_2D
+from source.utils import folding_2D, magnitude_shape_plot
 from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
@@ -40,7 +40,7 @@ def unix_time_millis(dt):
 MAX_MISSING = 0.1
 FILL_MISSING = False
 
-MODE = 2 # 0 for umap, 1 for ts2vec, 2 for CAE
+MODE = 0 # 0 for umap, 1 for ts2vec, 2 for CAE
 
 USE_TS2VEC = True
 MAX_WINDOWS = 40000
@@ -436,11 +436,13 @@ def getFdaOutliers():
     ts = mts.X[:, :, pollutantPosition]
     # print(ts.shape)
     
-    cmean, cvar = fdaOutlier(ts)
+    # cmean, cvar = fdaOutlier(ts)
+    cmean, cvar, outliers = magnitude_shape_plot(ts)
     
     resp_map = {}
     resp_map['cmean'] = cmean.tolist()
     resp_map['cvar'] = cvar.tolist()
+    resp_map['outliers'] = outliers.tolist()
     
     return jsonify(resp_map)
 
@@ -572,6 +574,14 @@ def loadWindows():
     
     
     mts = TSerie(X=dataset.windows, y=dataset.window_station_ids)
+    
+    
+    if mts.T > 40:
+        n_basis = 30
+    else:
+        n_basis = 6
+    
+    mts.to_basis(n_basis=n_basis)
     mts.smooth(window_size=smoothWindow)
     
     resp_map['windows_labels'] = {

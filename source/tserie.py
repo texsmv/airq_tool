@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from .utils import mts_norm, mts_shape_norm, mts_smooth
+from .utils import mts_norm, mts_shape_norm, mts_smooth, ts_to_basis
 
 
 class TSerie:
@@ -68,7 +68,14 @@ class TSerie:
         if returnValues:
             return mts_smooth(self.X, window_len=window_size)
         self.X = mts_smooth(self.X, window_len=window_size)
+        
     
-    
+    def to_basis(self, n_basis=30):
+        new_X = []
+        for d in range(self.D):
+            new_X.append(ts_to_basis(self.X[:, :, d], n_basis=n_basis))
+        self.X = np.array(new_X)
+        self.X = self.X.transpose(1, 2, 0)
+        self.T = self.X.shape[1]
     
         

@@ -4,6 +4,12 @@ import random
 from scipy import interpolate
 import os
 from scipy import stats
+from skfda.exploratory.visualization import MagnitudeShapePlot
+import skfda
+from skfda.representation.interpolation import SplineInterpolation
+from skfda.exploratory.depth.multivariate import SimplicialDepth
+import skfda.representation.basis as basis
+
 
 class ValueLogger(object):
     """Computes and stores the average and current value"""
@@ -376,8 +382,26 @@ def fdaOutlier(X):
     
     return mean_dir_out, var_dir_out
     
-# def fdaOutlier(X):
+def magnitude_shape_plot(X):
+    t = np.arange(X.shape[1])
+    fd = skfda.FDataGrid(X, t)
     
+    msplot = MagnitudeShapePlot(
+        fd,
+        multivariate_depth=SimplicialDepth(),
+        # multivariate_depth=Outlyingness(),
+    )
+    return msplot.points[:,1], msplot.points[:,0], msplot.outliers
+
+def ts_to_basis(X, n_basis):
+    t = np.arange(X.shape[1])
+    fd = skfda.FDataGrid(X, t)
+    fd_basis = fd.to_basis(basis.FourierBasis(n_basis=n_basis))
+    data = fd_basis.to_grid(grid_points=t).data_matrix.squeeze()
+    return data
+    
+
+    # fd_basis = fd.to_basis(basis.BSplineBasis(n_basis=30))
 #     dts = np.transpose(X)
 #     # median_vec = np.median(dts, axis=1)
 #     mad_vec = stats.median_abs_deviation(dts, axis=1)
