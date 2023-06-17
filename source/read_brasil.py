@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 from .utils import dfMonthWindows, dfYearWindows, dfDailyWindows
 
-DB_PATH = 'datasets/brasil/Data_AirQuality/'
+DB_PATH = 'datasets/Brasil/'
 
 all_fileNames = ['BEN', 'CO', 'DV', 'DVG', 'ERT', 'MP10', 'MP25', 'NO', 'MP25', 'NOx', 'O3', 'PRESS', 'RADG', 'RADUV', 'SO2', 'TEMP', 'TOL', 'UR']
 

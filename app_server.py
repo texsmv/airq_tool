@@ -5,7 +5,7 @@ from flask import jsonify
 import json
 import sys
 import numpy as np
-from sklearn.cluster import KMeans
+# from sklearn.cluster import KMeans
 import pandas as pd
 # from contrastive import CPCA
 import matplotlib.pyplot as plt
@@ -25,7 +25,8 @@ from source.featlearn.byol import BYOL
 from sklearn.metrics import pairwise_distances
 from sklearn.model_selection import train_test_split
 import aqi
-
+from fast_pytorch_kmeans import KMeans
+import torch
 
 import datetime
 epoch = datetime.datetime.utcfromtimestamp(0)
@@ -38,7 +39,7 @@ def unix_time_millis(dt):
 # from ts2vec import TS2Vec
 
 MAX_MISSING = 0.1
-FILL_MISSING = False
+FILL_MISSING = True
 
 MODE = 0 # 0 for umap, 1 for ts2vec, 2 for CAE
 
@@ -181,24 +182,24 @@ CORS(app)
 def datasetsInfo():
     global dataset
     # ontarioDataset = OntarioDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
-    # brasilDataset = BrasilDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
-    hongkongDataset = HongKongDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='daily')
+    brasilDataset = BrasilDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='years')
+    hongkongDataset = HongKongDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='years')
     
     resp_map = {
         # 'ontario' : {
         #     'pollutants': ontarioDataset.all_pollutants,
         #     'stations': ontarioDataset.stations,
         # },
-        # 'brasil' : {
-        #     'pollutants': brasilDataset.all_pollutants,
-        #     'stations': brasilDataset.stations,
-        # },
+        'brasil' : {
+            'pollutants': brasilDataset.all_pollutants,
+            'stations': brasilDataset.stations,
+        },
         'hongkong':{
             'pollutants': hongkongDataset.all_pollutants,
             'stations': hongkongDataset.stations,
         }
     }
-    dataset = hongkongDataset
+    # dataset = hongkongDataset
     return jsonify(resp_map)
 
 @app.route("/correlation", methods=["POST"])
@@ -308,17 +309,18 @@ def getProjection():
         EPOCHS = 20
         EPOCHS_CAE = 800
         FEATURE_SIZE_CAE = 12 
-        # N_NEIGHBORS = 30
+        N_NEIGHBORS = 15
     elif granularity == 'years':
         EPOCHS = 100
         EPOCHS_CAE = 2000
         FEATURE_SIZE_CAE = 30
-        # N_NEIGHBORS = 5
+        N_NEIGHBORS = 15
     elif granularity == 'daily':
         EPOCHS = 20
         EPOCHS_CAE = 200
         FEATURE_SIZE_CAE = 8
-        # N_NEIGHBORS = 15
+        N_NEIGHBORS = 15
+    _, _ = mts.minMaxNormalizization(returnValues=False)
     
     if MODE == 0:    
         X_filtered = mts.X[:, :, pollPositions]
@@ -375,7 +377,7 @@ def getProjection():
     
     
     # reducer = umap.UMAP(n_components=2, metric='euclidean')
-    reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=20)
+    reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=10)
     coords = reducer.fit_transform(mts.features)
     # coords = reducer.fit_transform(distM)
     g_coords = coords
@@ -456,9 +458,13 @@ def kmeans():
     n_clusters = request.form['n_clusters']
     n_clusters = int(n_clusters)
     
-    kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
+    # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
+    feat = torch.from_numpy(mts.features).to('cuda')
+    kmeans = KMeans(n_clusters, max_iter = 300, mode='euclidean')
+    labels = kmeans.fit_predict(feat)
+    classes = labels.cpu().numpy()
     # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(g_coords)
-    classes = kmeans.labels_
+    # classes = kmeans.labels_
         
     resp_map = {}
     resp_map['classes'] = classes.tolist()
@@ -516,8 +522,8 @@ def loadWindows():
     print('Pollutants: {}'.format(pollutants))
     
     
-    # if datasetName=='brasil':
-    #     dataset = BrasilDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    if datasetName=='brasil':
+        dataset = BrasilDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     # elif datasetName =='ontario':
     #     dataset = OntarioDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     if datasetName =='hongkong':
@@ -525,37 +531,6 @@ def loadWindows():
     
     print('Reading stations {}'.format(stations))
     dataset.common_windows(pollutants, stations, max_windows=MAX_WINDOWS)
-    
-    # data_info = read_ontario_stations()
-    
-    # Dates matrix stuff
-    # dates = dataset.window_dates
-    # timeInMs = np.array([unix_time_millis(d) for d in dates])
-    # timeInMs = np.expand_dims(timeInMs, axis=1)
-    
-    # time_DM = pairwise_distances(timeInMs)
-    # time_DM = time_DM / np.max(time_DM)
-    
-    # print('Dates matrix done')
-    
-    # Location matrix stuff  
-    # stations = dataset.window_stations_all
-    # station_ids = dataset.window_station_ids
-    # print(data_info)
-    # print(station_ids)
-    # print(stations)
-    # coords = np.array([
-    #     [
-    #         float(data_info[str(stations[station_ids[i]])]['latitude']), 
-    #         float(data_info[str(stations[station_ids[i]])]['longitude'])
-    #     ]
-    #     for i in range(len(dates))
-    # ])
-    
-    # space_DM = pairwise_distances(coords)
-    # space_DM = space_DM / np.max(space_DM)
-
-    # print('Space matrix done')
     
     
     resp_map = {}
@@ -592,7 +567,7 @@ def loadWindows():
     
     for i in range(len(dataset.window_pollutants)):
         pol = dataset.window_pollutants[i]
-        resp_map['windows'][pol] = mts.X[:,:,i].flatten().tolist()
+        resp_map['windows'][pol] = mts.X_orig[:,:,i].flatten().tolist()
     
     resp_map['windows_labels'] = {
         'dates' : dataset.window_dates.tolist(),
@@ -600,17 +575,19 @@ def loadWindows():
     }
     
     
-    if shapeNorm:
-        print('Normalizing')
-        X_norm, _ = mts.shapeNormalizization(returnValues=True)
-        print('Normalizing done')
-    else:
-        X_norm, _, _ = mts.minMaxNormalizization(returnValues=True)
-
+    # if shapeNorm:
+    #     print('Normalizing')
+    #     X_norm, _ = mts.shapeNormalizization(returnValues=True)
+    #     print('Normalizing done')
+    # else:
+    #     X_norm, _, _ = mts.minMaxNormalizization(returnValues=True)
+    
+    # X_norm = mts.X
     resp_map['proc_windows'] = {}
     for i in range(len(dataset.window_pollutants)):
         pol = dataset.window_pollutants[i]
-        resp_map['proc_windows'][pol] = X_norm[:,:,i].flatten().tolist()
+        resp_map['proc_windows'][pol] = mts.X[:,:,i].flatten().tolist()
+        # resp_map['orig_windows'][pol] = X_norm[:,:,i].flatten().tolist()
     
     return jsonify(resp_map)
         
