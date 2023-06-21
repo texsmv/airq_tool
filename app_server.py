@@ -41,7 +41,7 @@ def unix_time_millis(dt):
 MAX_MISSING = 0.1
 FILL_MISSING = True
 
-MODE = 0 # 0 for umap, 1 for ts2vec, 2 for CAE
+MODE = 2 # 0 for umap, 1 for ts2vec, 2 for CAE
 
 USE_TS2VEC = True
 MAX_WINDOWS = 40000
@@ -65,10 +65,10 @@ def daily_iaqi(pollutant, data):
     if pollutant == 'O3':
         d_mean = data.mean()
         return aqi.to_iaqi('o3_8h', str(d_mean), algo=aqi.ALGO_MEP)
-    elif pollutant == 'PM25' or pollutant == 'FSP':
+    elif pollutant == 'PM25' or pollutant == 'FSP' or pollutant == 'MP25':
         d_mean = data.mean()
         return aqi.to_iaqi(aqi.POLLUTANT_PM25, str(d_mean), algo=aqi.ALGO_EPA)
-    elif pollutant == 'PM10' or pollutant == 'RSP':
+    elif pollutant == 'PM10' or pollutant == 'RSP' or pollutant == 'MP10':
         d_mean = data.mean()
         return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_EPA)
     elif pollutant == 'NO2':
@@ -181,15 +181,15 @@ CORS(app)
 @app.route("/datasets", methods=['POST'])
 def datasetsInfo():
     global dataset
-    # ontarioDataset = OntarioDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    ontarioDataset = OntarioDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='years')
     brasilDataset = BrasilDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='years')
     hongkongDataset = HongKongDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='years')
     
     resp_map = {
-        # 'ontario' : {
-        #     'pollutants': ontarioDataset.all_pollutants,
-        #     'stations': ontarioDataset.stations,
-        # },
+        'ontario' : {
+            'pollutants': ontarioDataset.all_pollutants,
+            'stations': ontarioDataset.stations,
+        },
         'brasil' : {
             'pollutants': brasilDataset.all_pollutants,
             'stations': brasilDataset.stations,
@@ -524,8 +524,8 @@ def loadWindows():
     
     if datasetName=='brasil':
         dataset = BrasilDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
-    # elif datasetName =='ontario':
-    #     dataset = OntarioDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+    elif datasetName =='ontario':
+        dataset = OntarioDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     if datasetName =='hongkong':
         dataset = HongKongDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     
@@ -552,9 +552,9 @@ def loadWindows():
     
     
     if mts.T > 40:
-        n_basis = 30
+        n_basis = 40
     else:
-        n_basis = 6
+        n_basis = 15
     
     mts.to_basis(n_basis=n_basis)
     mts.smooth(window_size=smoothWindow)

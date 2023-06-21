@@ -72,6 +72,7 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
                     else:
                         for t in range(len(values)):
                             if fill_missing:
+                                # print(values[t].shape)
                                 values[t] = tryFillMissing(values[t], maxMissing=max_missing)
                         values = values.flatten()
                             

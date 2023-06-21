@@ -74,8 +74,12 @@ def fill_nan(A):
     '''
     inds = np.arange(A.shape[0])
     good = np.where(np.isfinite(A))
-    f = interpolate.interp1d(inds[good], A[good], kind='cubic', bounds_error=False)
-    B = np.where(np.isfinite(A),A,f(inds))
+    # TODO fix
+    # f = interpolate.interp1d(inds[good], A[good], kind='cubic', bounds_error=False)
+    # B = np.where(np.isfinite(A),A,f(inds))
+    f = np.zeros(A.shape)
+    B = np.where(np.isfinite(A),A,f)
+    B[B < 0] = 0
     return B
 
 def tryFillMissing(window, maxMissing = 0.2):
@@ -103,7 +107,8 @@ def dfMonthWindows(pol_df, fill_missing=False, maxMissing=0.1):
         
         temp = m_df.resample('D').mean().to_numpy()
         
-        if fill_missing:
+        if fill_missing and len(temp) >= 28:
+            # print(temp.shape)
             temp = tryFillMissing(temp.squeeze(), maxMissing=maxMissing)
             temp = np.expand_dims(temp, 1)
         
@@ -161,7 +166,8 @@ def dfYearWindows(pol_df, fill_missing=False, maxMissing=0.1):
         
         temp = m_df.resample('D').mean().to_numpy()
         
-        if fill_missing:
+        if fill_missing and len(temp) >= 365:
+            # print(temp.shape)
             temp = tryFillMissing(temp.squeeze(), maxMissing=maxMissing)
             temp = np.expand_dims(temp, 1)
         
