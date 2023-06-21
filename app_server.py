@@ -390,6 +390,80 @@ def getProjection():
     return jsonify(resp_map)
 
 
+@app.route("/getCustomProjection", methods=['POST'])
+def getCustomProjection():
+    global dataset
+    global granularity
+    global mts
+    
+    pollPositions = np.array(json.loads(request.form['pollutantsPositions']))
+    itemPositions = np.array(json.loads(request.form['itemsPositions']))
+    
+    N_NEIGHBORS = int(request.form['neighbors'])
+    # delta = float(request.form['delta'])
+    # beta = float(request.form['beta'])
+    
+    
+    if granularity == 'months':
+        EPOCHS = 20
+        EPOCHS_CAE = 800
+        FEATURE_SIZE_CAE = 12 
+        N_NEIGHBORS = 15
+    elif granularity == 'years':
+        EPOCHS = 100
+        EPOCHS_CAE = 2000
+        FEATURE_SIZE_CAE = 30
+        N_NEIGHBORS = 15
+    elif granularity == 'daily':
+        EPOCHS = 20
+        EPOCHS_CAE = 200
+        FEATURE_SIZE_CAE = 8
+        N_NEIGHBORS = 15
+    _, _ = mts.minMaxNormalizization(returnValues=False)
+    
+    if MODE == 0:    
+        X_filtered = mts.X[:, :, pollPositions]
+        mts_filtered = TSerie(X_filtered, mts.y)
+        mts_filtered.folding_features_v1()
+        
+        model = UMAP_FL(n_components=32, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)
+        # model = PCA(n_components=16)
+        mts.features = model.fit_transform(mts_filtered.features)
+    elif MODE == 1:
+        model = TS2Vec(
+            input_dims=mts.D,
+            device=0,
+            output_dims=32,
+            batch_size=BATCH_SIZE,
+            depth=10,
+            hidden_dims=128,
+        )
+        model.fit(mts.X, verbose=True,n_epochs = EPOCHS)
+        mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
+        mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
+    else:
+        cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        
+        # X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
+        
+        X = mts.X[itemPositions,:,pollPositions]
+        cae.fit(X, epochs=EPOCHS_CAE, batch_size=EPOCHS_CAE)
+        _, features = cae.encode(X)
+        
+    reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=10)
+    coords = reducer.fit_transform(features)
+    reducer = None
+    
+    
+    resp_map = {}
+    resp_map['coords'] = coords.flatten().tolist()
+    
+    return jsonify(resp_map)
+
+
+
+
+
 @app.route("/spatioTemporalProjection", methods=['POST'])
 def spatioTemporalProjection():
     global dataset
