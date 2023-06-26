@@ -14,7 +14,7 @@ from source.tserie import TSerie
 from sklearn.decomposition import PCA
 from cuml.neighbors import NearestNeighbors
 from cuml.manifold import UMAP
-# from ccpca import CCPCA
+from ccpca import CCPCA
 from source.utils import folding_2D, magnitude_shape_plot
 from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
@@ -378,6 +378,7 @@ def getProjection():
     
     # reducer = umap.UMAP(n_components=2, metric='euclidean')
     reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=10)
+    print('FEAT SHAPE: {}'.format(mts.features.shape))
     coords = reducer.fit_transform(mts.features)
     # coords = reducer.fit_transform(distM)
     g_coords = coords
@@ -398,61 +399,41 @@ def getCustomProjection():
     
     pollPositions = np.array(json.loads(request.form['pollutantsPositions']))
     filtered = np.array(json.loads(request.form['itemsPositions']))
-    itemPositions = np.argwhere(filtered == True)
+    itemPositions = np.argwhere(filtered == True).squeeze()
     N_NEIGHBORS = int(request.form['neighbors'])
     # delta = float(request.form['delta'])
     # beta = float(request.form['beta'])
     
-    
-    if granularity == 'months':
-        EPOCHS = 20
-        EPOCHS_CAE = 800
-        FEATURE_SIZE_CAE = 12 
-        N_NEIGHBORS = 15
-    elif granularity == 'years':
-        EPOCHS = 100
-        EPOCHS_CAE = 2000
-        FEATURE_SIZE_CAE = 30
-        N_NEIGHBORS = 15
-    elif granularity == 'daily':
-        EPOCHS = 20
-        EPOCHS_CAE = 200
-        FEATURE_SIZE_CAE = 8
-        N_NEIGHBORS = 15
-    _, _ = mts.minMaxNormalizization(returnValues=False)
-    
-    if MODE == 0:    
-        X_filtered = mts.X[:, :, pollPositions]
-        mts_filtered = TSerie(X_filtered, mts.y)
-        mts_filtered.folding_features_v1()
+
         
-        model = UMAP_FL(n_components=32, n_neighbors=N_NEIGHBORS, metric=UMAP_METRIC, n_epochs = 15000)
-        # model = PCA(n_components=16)
-        mts.features = model.fit_transform(mts_filtered.features)
-    elif MODE == 1:
-        model = TS2Vec(
-            input_dims=mts.D,
-            device=0,
-            output_dims=32,
-            batch_size=BATCH_SIZE,
-            depth=10,
-            hidden_dims=128,
-        )
-        model.fit(mts.X, verbose=True,n_epochs = EPOCHS)
-        mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
-        mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
-    else:
-        
-        # X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
-        
-        X = mts.X[itemPositions,:,pollPositions].transpose([0, 2, 1])
-        cae = AutoencoderFL(X.shape[2], mts.T, feature_size=FEATURE_SIZE_CAE)
-        cae.fit(X, epochs=EPOCHS_CAE, batch_size=EPOCHS_CAE)
-        _, features = cae.encode(X)
-        
-    reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=10)
-    coords = reducer.fit_transform(features)
+    reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=5)
+    coords = reducer.fit_transform(mts.features[itemPositions])
     reducer = None
+    
+    
+    # backPositions = np.argwhere(filtered != True).squeeze()
+    # ccpca = CCPCA(n_components=2)
+    # Xf = mts.features[itemPositions]
+    # Xb = mts.features[backPositions]
+    
+    # ccpca.fit(
+    #     Xf,
+    #     Xb,
+    #     var_thres_ratio=0.5,
+    #     n_alphas=40,
+    #     max_log_alpha=0.5,
+    # )
+    # coords = ccpca.transform(Xf)
+    
+    # print(Xb.shape)
+    # print(Xf.shape)
+    # print(coords.shape)
+    # best_alpha = ccpca.get_best_alpha()
+    # cpca_fcs = ccpca.get_feat_contribs()
+    
+    # print(best_alpha)
+    # print(cpca_fcs)
+    
     
     
     resp_map = {}
