@@ -22,7 +22,12 @@ from source.utils import fdaOutlier
 import umap
 from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
 from source.featlearn.byol import BYOL
-from sklearn.metrics import pairwise_distances
+# from sklearn.metrics import pairwise_distances
+# from gpu_pairwise.geometric import pairwise_distance
+# from gpu_pairwise import pairwise_distances
+# from numbaDistanceMatrix.cudaDistanceMatrix import DistanceMatrix
+# from numbaDistanceMatrix.cudaDistanceMatrix import DistanceMatrix
+from dist_matrix.cuda_dist_matrix_full import dist_matrix as gpu_dist_matrix
 from sklearn.model_selection import train_test_split
 import aqi
 from fast_pytorch_kmeans import KMeans
@@ -174,6 +179,8 @@ g_coords = None
 space_DM = None
 time_DM = None
 feature_DM = None
+latlong = None
+timeInMs = None
 
 app = Flask(__name__)
 CORS(app)
@@ -363,8 +370,11 @@ def getProjection():
         # preds = np.argmax(clusters, axis=1)
         # print(np.unique(preds, return_counts=True))
         
-    
-    # feature_DM = pairwise_distances(mts.features, metric='cosine')
+    # DM = DistanceMatrix()
+    # DM.calculate_distmatrix(mts.features)
+    # feature_DM = DM.get_distance_matrix(fullMatrix=True)
+    feature_DM = gpu_dist_matrix(mts.features)
+    # feature_DM = pairwise_distance(mts.features, metric='euclidean')
     # feature_DM = feature_DM / np.max(feature_DM)
     
     # delta = 0.0
@@ -373,14 +383,14 @@ def getProjection():
     # beta = 0.00
     
     # distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
-    # reducer = umap.UMAP(n_components=2, metric='precomputed')
+    reducer = umap.UMAP(n_components=2, metric='precomputed')
     
     
     # reducer = umap.UMAP(n_components=2, metric='euclidean')
-    reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=10)
-    print('FEAT SHAPE: {}'.format(mts.features.shape))
-    coords = reducer.fit_transform(mts.features)
-    # coords = reducer.fit_transform(distM)
+    # reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=10)
+    # print('FEAT SHAPE: {}'.format(mts.features.shape))
+    # coords = reducer.fit_transform(mts.features)
+    coords = reducer.fit_transform(feature_DM)
     g_coords = coords
     reducer = None
     
@@ -396,18 +406,35 @@ def getCustomProjection():
     global dataset
     global granularity
     global mts
+    global timeInMs
+    global latlong
     
-    pollPositions = np.array(json.loads(request.form['pollutantsPositions']))
+    pollutantPosition = request.form['pollutantPosition']
+    pollutantPosition = int(pollutantPosition)
     filtered = np.array(json.loads(request.form['itemsPositions']))
     itemPositions = np.argwhere(filtered == True).squeeze()
     N_NEIGHBORS = int(request.form['neighbors'])
-    # delta = float(request.form['delta'])
-    # beta = float(request.form['beta'])
+    delta = float(request.form['delta'])
+    beta = float(request.form['beta'])
     
 
-        
-    reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=5)
-    coords = reducer.fit_transform(mts.features[itemPositions])
+
+    feature_DM = gpu_dist_matrix(mts.features[itemPositions])
+    feature_DM = feature_DM / np.max(feature_DM)
+    
+    space_DM = gpu_dist_matrix(latlong[itemPositions])
+    space_DM = space_DM / np.max(space_DM)
+    
+    time_DM = gpu_dist_matrix(timeInMs[itemPositions])
+    time_DM = time_DM / np.max(time_DM)
+    
+    # print(space_DM.shape)
+    # print(time_DM.shape)
+    
+    distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
+    # reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=5)
+    reducer = umap.UMAP(n_components=2, metric='precomputed',n_neighbors=5)
+    coords = reducer.fit_transform(distM)
     reducer = None
     
     
@@ -434,10 +461,16 @@ def getCustomProjection():
     # print(best_alpha)
     # print(cpca_fcs)
     
+    # Outliers
     
+    ts = mts.X[itemPositions, :, pollutantPosition]
+    cmean, cvar, outliers = magnitude_shape_plot(ts)
     
     resp_map = {}
     resp_map['coords'] = coords.flatten().tolist()
+    resp_map['cmean'] = cmean.tolist()
+    resp_map['cvar'] = cvar.tolist()
+    resp_map['outliers'] = outliers.tolist()
     
     return jsonify(resp_map)
 
@@ -643,6 +676,27 @@ def loadWindows():
         pol = dataset.window_pollutants[i]
         resp_map['proc_windows'][pol] = mts.X[:,:,i].flatten().tolist()
         # resp_map['orig_windows'][pol] = X_norm[:,:,i].flatten().tolist()
+        
+    global timeInMs
+    global latlong
+    
+    # Dates
+    dates = dataset.window_dates
+    timeInMs = np.array([unix_time_millis(d) for d in dates])
+    timeInMs = np.expand_dims(timeInMs, axis=1)
+    
+    # Space coordinates
+    stations = dataset.window_stations_all
+    data_info = dataset.stations
+    station_ids = dataset.window_station_ids
+    
+    latlong = np.array([
+        [
+            float(dataset.stations_map[stations[station_ids[i]]]['latitude']), 
+            float(dataset.stations_map[stations[station_ids[i]]]['longitude'])
+        ]
+        for i in range(len(dates))
+    ])
     
     return jsonify(resp_map)
         

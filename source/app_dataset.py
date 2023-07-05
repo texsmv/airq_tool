@@ -14,8 +14,6 @@ class OntarioDataset:
         
         n_map = {}
         for pol_k, pol_d in self.windows_map.items():
-            # n_map[pol_k] = {}
-            # Eg for 44008, _ in ...
             pol_dict = self.windows_map[pol_k]
             n_pol_dict = {}
             for sta_k, sta_d in pol_dict.items():
@@ -23,7 +21,6 @@ class OntarioDataset:
                 stat_dict = pol_dict[sta_k]
                 
                 if real_name in n_pol_dict:
-                    # print('-')
                     real_dict = n_pol_dict[real_name]
                     for win_k, win_d in stat_dict.items():
                         real_dict[win_k] = win_d
@@ -31,6 +28,11 @@ class OntarioDataset:
                     n_pol_dict[real_name] = stat_dict
             n_map[pol_k] = n_pol_dict
         self.windows_map = n_map
+        
+        n_stations_map = {}
+        for sta_k, sta_v in self.stations_map.items():
+            n_stations_map[sta_v['name']] = sta_v
+        self.stations_map = n_stations_map
         
         # Get stations and dates ranges
         # all_stations = []
@@ -54,21 +56,7 @@ class OntarioDataset:
         
         self.dates = all_dates
         self.stations = all_stations
-        # self.old_stations = all_stations
         
-        # new_station_map = {}
-        # self.old_stations_map  = self.stations_map
-        # new_names = []
-        # for station in self.stations:
-        #     # print(station)
-        #     new_names = new_names + [self.stations_map[station]['name']]
-        #     self.stations_map[station]['old_name'] = station
-        #     new_station_map[self.stations_map[station]['name']] = self.stations_map[station]
-        #     # old_station_map[station] = self.stations_map[station]
-        # self.stations_map = new_station_map
-        # self.stations = new_names
-        # # print('Stations type: {}'.format(type(self.stations)))
-        # # print(self.old_stations_map)
 
     def common_windows(self, pollutants, stations, max_windows = 10000):
         # print('----------------------------------------------------------------')
@@ -119,20 +107,8 @@ class OntarioDataset:
             print(np.unique(self.window_station_ids, return_counts=True))
         
         self.window_pollutants = pollutants
-        
-        # self.window_stations = self.old_stations
         self.window_stations_all = self.window_stations
-        print('unique')
-        print(len(np.unique(self.window_station_ids)))
-        print(np.unique(self.window_station_ids))
-        print('----')
-        # print(len(self.window_stations))
-        # print(self.window_stations)
-        
-        print(self.window_stations)
         self.window_stations = self.window_stations[np.unique(self.window_station_ids)] 
-        
-        # self.window_stations = [self.old_stations_map[str(k)]['name'] for k in self.window_stations]
         print(self.window_stations)
     
     def dateRanges(self):
