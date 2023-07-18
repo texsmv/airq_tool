@@ -21,6 +21,7 @@ from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
 from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
+from source.featlearn.mec_framework import MEC_FL
 from source.featlearn.byol import BYOL
 # from sklearn.metrics import pairwise_distances
 # from gpu_pairwise.geometric import pairwise_distance
@@ -314,17 +315,20 @@ def getProjection():
     
     if granularity == 'months':
         EPOCHS = 20
-        EPOCHS_CAE = 800
+        # EPOCHS_CAE = 800
+        EPOCHS_CAE = 200
         FEATURE_SIZE_CAE = 12 
         N_NEIGHBORS = 15
     elif granularity == 'years':
         EPOCHS = 100
-        EPOCHS_CAE = 2000
+        # EPOCHS_CAE = 2000
+        EPOCHS_CAE = 300
         FEATURE_SIZE_CAE = 30
         N_NEIGHBORS = 15
     elif granularity == 'daily':
         EPOCHS = 20
-        EPOCHS_CAE = 200
+        # EPOCHS_CAE = 200
+        EPOCHS_CAE = 50
         FEATURE_SIZE_CAE = 8
         N_NEIGHBORS = 15
     _, _ = mts.minMaxNormalizization(returnValues=False)
@@ -350,46 +354,20 @@ def getProjection():
         mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
     else:
-        cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
-        # cae = VAE_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
-        # cae = DCEC(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, n_clusters=5)
+        # cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        # cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=200)
+        # _, mts.features = cae.encode(mts.X)
         
-        X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
-        # cae = BYOL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise', use_frequency=False)
-        # cae = BarlowTwins(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE, aug_type='noise')
+        cae = MEC_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        cae.fit(mts.X.transpose([0, 2, 1]), epochs=EPOCHS_CAE, batch_size=200, freq=10)
+        mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
+        # X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
         
         
-        # cae.fit(X_train, epochs=200, batch_size=320, X_val=X_val)
-        # mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
-        
-        # cae.fit(mts.X, epochs=100, batch_size=400, gamma=0)
-        # cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=400, gamma=100)
-        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=EPOCHS_CAE)
-        _, mts.features = cae.encode(mts.X)
-        # _, mts.features, clusters = cae.encode(mts.X)
-        # preds = np.argmax(clusters, axis=1)
-        # print(np.unique(preds, return_counts=True))
-        
-    # DM = DistanceMatrix()
-    # DM.calculate_distmatrix(mts.features)
-    # feature_DM = DM.get_distance_matrix(fullMatrix=True)
     feature_DM = gpu_dist_matrix(mts.features)
-    # feature_DM = pairwise_distance(mts.features, metric='euclidean')
-    # feature_DM = feature_DM / np.max(feature_DM)
     
-    # delta = 0.0
-    # delta = 0.001
-    # beta = 0.0
-    # beta = 0.00
-    
-    # distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
     reducer = umap.UMAP(n_components=2, metric='precomputed')
     
-    
-    # reducer = umap.UMAP(n_components=2, metric='euclidean')
-    # reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=10)
-    # print('FEAT SHAPE: {}'.format(mts.features.shape))
-    # coords = reducer.fit_transform(mts.features)
     coords = reducer.fit_transform(feature_DM)
     g_coords = coords
     reducer = None
@@ -423,7 +401,7 @@ def getCustomProjection():
     feature_DM = feature_DM / np.max(feature_DM)
     
     space_DM = gpu_dist_matrix(latlong[itemPositions])
-    space_DM = space_DM / np.max(space_DM)
+    space_DM = space_DM / (np.max(space_DM) + 0.00000001)
     
     time_DM = gpu_dist_matrix(timeInMs[itemPositions])
     time_DM = time_DM / np.max(time_DM)
@@ -529,10 +507,55 @@ def getFdaOutliers():
     # cmean, cvar = fdaOutlier(ts)
     cmean, cvar, outliers = magnitude_shape_plot(ts)
     
+    mmean = cvar.mean()
+    # mean = np.median(cmean)
+     
+    
+    # print(mean)
+    # print(cmean)
+    # print(cmean.median())
+    # print(np.median(cmean))
+    # print(np.mean(cmean))
+    # print(np.std(cmean))
+    
+    # print(np.median(cvar))
+    # print(np.mean(cvar))
+    # print(np.std(cvar))
+    # print(cmean.std())
+    # print(outliers)
+    # print(outliers.shape)
+    # print(cmean.shape)
+    # w_mean = ts.mean(axis=1)
+    # w_mean = ts.median(axis=1)
+    # print(w_mean.shape)
+    
+    
+    lower_o = np.bitwise_and(outliers == 1, cvar < mmean)
+    upper_o = np.bitwise_and(outliers == 1, cvar > mmean)
+    
+    # lower_o = cvar < mmean
+    # upper_o = cvar > mmean
+    
+    
+    n_outliers = np.zeros(outliers.shape[0]).astype(int)
+    n_outliers[lower_o] = 1
+    n_outliers[upper_o] = 2
+    n_outliers[outliers == 0] = 0
+    
+    # print('-------------')
+    # print(cvar[lower_o].mean())
+    # print(cvar[outliers == 0].mean())
+    # print(cvar[upper_o].mean())
+    # print('-------------')
+    
+    # print(n_outliers)
+    # print(np.unique(n_outliers, return_counts=True))
+    # print(n_outliers.shape)
+    
     resp_map = {}
     resp_map['cmean'] = cmean.tolist()
     resp_map['cvar'] = cvar.tolist()
-    resp_map['outliers'] = outliers.tolist()
+    resp_map['outliers'] = n_outliers.tolist()
     
     return jsonify(resp_map)
 

@@ -59,32 +59,11 @@ class OntarioDataset:
         
 
     def common_windows(self, pollutants, stations, max_windows = 10000):
-        # print('----------------------------------------------------------------')
-        # print(stations)
-        # print(type(stations))
-        # print(self.windows_map.keys())
-        # print(self.windows_map['O3'].keys())
-        # print('----------------------------------------------------------------')
-        # stations = [int(self.stations_map[st]['old_name']) for st in stations]
-        # print(stations)
-        # print(self.old_stations_map)
-        
-        # new_map = {}
-        # for k, v in self.windows_map.items():
-        #     new_map[k] = {}
-        #     for st_k, data in v.items():
-        #         new_k = self.old_stations_map[str(st_k)]['name']
-        #         new_map[k][new_k] = data
-                
-        # self.windows_map = new_map
-        
         self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(
             self.windows_map, 
             pollutants, 
             stations
         )
-        # print(self.window_station_ids)
-        # print(self.window_stations)
         
         N = len(self.windows) 
         if N > max_windows:
@@ -94,22 +73,16 @@ class OntarioDataset:
             idx = indices[:max_windows]
             idx = np.array(idx)
         
-            print(idx)
-            
             self.windows = self.windows[idx]
             self.window_dates = self.window_dates[idx]
-            print(np.unique(self.window_station_ids, return_counts=True))
             
             self.window_station_ids = np.array(self.window_station_ids)
             self.window_station_ids = self.window_station_ids[idx]
             
-            print(self.window_station_ids)
-            print(np.unique(self.window_station_ids, return_counts=True))
         
         self.window_pollutants = pollutants
         self.window_stations_all = self.window_stations
         self.window_stations = self.window_stations[np.unique(self.window_station_ids)] 
-        print(self.window_stations)
     
     def dateRanges(self):
         return self.dates[0], self.dates[-1]
@@ -129,13 +102,309 @@ class BrasilDataset:
         self.pollutants = list(self.windows_map.keys())
         
         
-        # Get stations and dates ranges
-        # all_stations = []
-        # for pol in self.pollutants:
-        #     all_stations = all_stations + list(self.windows_map[pol].keys())
-        # all_stations = np.unique(np.array(all_stations))
         all_stations = getAllStations(self.windows_map, self.all_pollutants).tolist()
         
+        self.stations_map = {
+            'Capão Redondo': {
+                'name':'Capão Redondo',
+                'latitude':-23.6719026, 
+                'longitude':-46.7794354
+            },
+            'Cerqueira César': {
+                'name':'Cerqueira César',
+                'latitude':-23.0353135, 
+                'longitude':-49.1650519
+            },
+            'Cid.Universitária-USP-Ipen': {
+                'name':'Cid.Universitária-USP-Ipen',
+                'latitude':-23.557594299316406,
+                'longitude':-46.71200180053711
+            },
+            'Congonhas': {
+                'name':'Congonhas',
+                'latitude':-20.5015168,
+                'longitude':-43.8564586
+            },
+            'Ibirapuera': {
+                'name':'Ibirapuera',
+                'latitude':-14.8428108,
+                'longitude':-40.8546285
+            },
+            'Interlagos': {
+                'name':'Interlagos',
+                'latitude':-23.7019315,
+                'longitude':-46.6967078
+            },
+            'Itaim Paulista': {
+                'name':'Itaim Paulista',
+                'latitude':-23.5017648,
+                'longitude':-46.3996091
+            },
+            'Itaquera': {
+                'name':'Itaquera',
+                'latitude':-23.5360799,
+                'longitude':-46.4555099
+            },
+            'Marg.Tietê-Pte Remédios': {
+                'name':'Marg.Tietê-Pte Remédios',
+                'latitude':-23.516924,
+                'longitude':-46.733631
+            },
+            
+            'Mooca': {
+                'name': 'Mooca',
+                'latitude':-23.5606808, 
+                'longitude':-46.5971924},
+            'N.Senhora do Ó': {
+                'name': 'N.Senhora do Ó',
+                'latitude':-8.4720591, 
+                'longitude':-35.0103062},
+            'Osasco': {
+                'name': 'Osasco',
+                'latitude':-8.399660110473633, 
+                'longitude':-35.06126022338867},
+            'Parelheiros': {
+                'name': 'Parelheiros',
+                'latitude':-23.827312, 
+                'longitude':-46.7277941},
+            'Parque D.Pedro II': {
+                'name': 'Parque D.Pedro II',
+                'latitude':-23.5508698, 
+                'longitude':-46.6275136},
+            'Pico do Jaraguá': {
+                'name': 'Pico do Jaraguá',
+                'latitude':-23.4584254, 
+                'longitude':-46.7670295},
+            'Pinheiros': {
+                'name': 'Pinheiros',
+                'latitude':-23.567249, 
+                'longitude':-46.7019515},
+            'Santana': {
+                'name': 'Santana',
+                'latitude':-12.979217, 
+                'longitude':-44.05064},
+            'Santo Amaro': {
+                'name': 'Santo Amaro',
+                'latitude':-12.5519686, 
+                'longitude':-38.7060448},
+            'Windsor Downtown': {
+                'name': 'Windsor Downtown',
+                'latitude':42.315778, 
+                'longitude':-83.043667},
+            'Windsor West': {
+                'name': 'Windsor West',
+                'latitude':42.292889, 
+                'longitude':-83.073139},
+            'Chatham': {
+                'name': 'Chatham',
+                'latitude':42.403694, 
+                'longitude':-82.208306},
+            'Sarnia': {
+                'name': 'Sarnia',
+                'latitude':42.990263, 
+                'longitude':-82.395341},
+            'Sarnia': {
+                'name': 'Sarnia',
+                'latitude':42.990263, 
+                'longitude':-82.395341},
+            'Grand Bend': {
+                'name': 'Grand Bend',
+                'latitude':43.333083, 
+                'longitude':-81.742889},
+            'London': {
+                'name': 'London',
+                'latitude':42.97446, 
+                'longitude':-81.200858},
+            'London': {
+                'name': 'London',
+                'latitude':42.97446, 
+                'longitude':-81.200858},
+            'Port Stanley': {
+                'name': 'Port Stanley',
+                'latitude':42.672083, 
+                'longitude':-81.162889},
+            'Tiverton': {
+                'name': 'Tiverton',
+                'latitude':44.314472, 
+                'longitude':-81.549722},
+            'Brantford': {
+                'name': 'Brantford',
+                'latitude':43.138611, 
+                'longitude':-80.292639},
+            'Kitchener': {
+                'name': 'Kitchener',
+                'latitude':43.443833, 
+                'longitude':-80.503806},
+            'St. Catharines': {
+                'name': 'St. Catharines',
+                'latitude':43.160056, 
+                'longitude':-79.23475},
+            'Guelph': {
+                'name': 'Guelph',
+                'latitude':43.551611, 
+                'longitude':-80.264167},
+            'Hamilton Downtown': {
+                'name': 'Hamilton Downtown',
+                'latitude':43.257778, 
+                'longitude':-79.861667
+            },
+            'Hamilton Mountain': {
+                'name': 'Hamilton Mountain',
+                'latitude':43.24132, 
+                'longitude':-79.88941
+            },
+            'Hamilton West': {
+                'name': 'Hamilton West',
+                'latitude':43.257444, 
+                'longitude':-79.90775
+            },
+            'Hamilton Mountain': {
+                'name': 'Hamilton Mountain',
+                'latitude':43.24132, 
+                'longitude':-79.88941
+            },
+            'Toronto Downtown': {
+                'name': 'Toronto Downtown',
+                'latitude':43.662972, 
+                'longitude':-79.388111
+            },
+            'Toronto East': {
+                'name': 'Toronto East',
+                'latitude':43.747917, 
+                'longitude':-79.274056
+            },
+            'Toronto North': {
+                'name': 'Toronto North',
+                'latitude':43.78047, 
+                'longitude':-79.467372
+            },
+            'Toronto North': {
+                'name': 'Toronto North',
+                'latitude':43.78047, 
+                'longitude':-79.467372
+            },
+            'Toronto West': {
+                'name': 'Toronto West',
+                'latitude':43.709444, 
+                'longitude':-79.5435
+            },
+            'Burlington': {
+                'name': 'Burlington',
+                'latitude': 43.315111, 
+                'longitude': -79.802639},
+            'Oakville': {
+                'name': 'Oakville',
+                'latitude': 43.486917, 
+                'longitude': -79.702278},
+            'Milton': {
+                'name': 'Milton',
+                'latitude': 43.529650, 
+                'longitude': -79.862449},
+            'Oshawa': {
+                'name': 'Oshawa',
+                'latitude': 43.95222, 
+                'longitude': -78.9125},
+            'Oshawa': {
+                'name': 'Oshawa',
+                'latitude': 43.95222, 
+                'longitude': -78.9125},
+            'Brampton': {
+                'name': 'Brampton',
+                'latitude': 43.669911, 
+                'longitude': -79.766589},
+            'Brampton': {
+                'name': 'Brampton',
+                'latitude': 43.669911, 
+                'longitude': -79.766589},
+            'Mississauga': {
+                'name': 'Mississauga',
+                'latitude': 43.54697, 
+                'longitude': -79.65869},
+            'Barrie': {
+                'name': 'Barrie',
+                'latitude': 44.382361, 
+                'longitude': -79.702306},
+            'Newmarket': {
+                'name': 'Newmarket',
+                'latitude': 44.044306, 
+                'longitude': -79.48325},
+            'Parry Sound': {
+                'name': 'Parry Sound',
+                'latitude': 45.338261, 
+                'longitude': -80.039269},
+            'Dorset': {
+                'name': 'Dorset',
+                'latitude': 45.224278, 
+                'longitude': -78.932944},
+            'Ottawa Downtown': {
+                'name': 'Ottawa Downtown',
+                'latitude': 45.434333, 
+                'longitude': -75.676},
+            'Ottawa Central': {
+                'name': 'Ottawa Central',
+                'latitude': 45.382528, 
+                'longitude': -75.714194},
+            'Petawawa': {
+                'name': 'Petawawa',
+                'latitude': 45.996722, 
+                'longitude': -77.441194},
+            'Kingston': {
+                'name': 'Kingston',
+                'latitude': 44.219722, 
+                'longitude': -76.521111},
+            'Kingston': {
+                'name': 'Kingston',
+                'latitude': 44.219722, 
+                'longitude': -76.521111},
+            'Belleville': {
+                'name': 'Belleville',
+                'latitude': 44.150528, 
+                'longitude': -77.3955},
+            'Morrisburg': {
+                'name': 'Morrisburg',
+                'latitude': 44.89975, 
+                'longitude': -75.189944},
+            'Cornwall': {
+                'name': 'Cornwall',
+                'latitude': 45.017972, 
+                'longitude': -74.735222},
+            'Peterborough': {
+                'name': 'Peterborough',
+                'latitude': 44.301917, 
+                'longitude': -78.346222},
+            'Thunder Bay': {
+                'name': 'Thunder Bay',
+                'latitude': 48.379389, 
+                'longitude': -89.290167},
+            'Sault Ste. Marie': {
+                'name': 'Sault Ste. Marie',
+                'latitude': 46.533194, 
+                'longitude': -84.309917},
+            'North Bay': {
+                'name': 'North Bay',
+                'latitude': 46.322500, 
+                'longitude': -79.4494444},
+            'Sudbury': {
+                'name': 'Sudbury',
+                'latitude': 46.49194, 
+                'longitude': -81.003105},
+            'Sudbury': {
+                'name': 'Sudbury',
+                'latitude': 46.49194, 
+                'longitude': -81.003105},
+            'Merlin': {
+                'name': 'Merlin',
+                'latitude': 42.249526, 
+                'longitude': -82.2180688},
+            'Simcoe': {
+                'name': 'Simcoe',
+                'latitude': 42.856834, 
+                'longitude': -80.269722},
+            'Stouffville': {
+                'name': 'Stouffville',
+                'latitude': 43.964580, 
+                'longitude': -79.266070},
+        }
 
 
         all_dates = []
@@ -194,6 +463,104 @@ class HongKongDataset:
         all_dates = np.unique(np.array(all_dates))
         all_dates = [np.datetime64(date) for date in all_dates]
         all_dates.sort()
+        
+        self.stations_map = {
+            'TAP MUN': {
+                'name': 'TAP MUN',
+                'latitude': 22.47739889541748, 
+                'longitude': 114.36275530753716,
+            },
+            'TAI PO': {
+                'name': 'TAI PO',
+                'latitude':22.448113324316108, 
+                'longitude':114.16586746973708,
+            },
+            'NORTH': {
+                'name': 'NORTH',
+                'latitude':22.50172748897659, 
+                'longitude':114.1285540488637,
+            },
+            'YUEN LONG': {
+                'name':'YUEN LONG',
+                'latitude':22.467372785923885, 
+                'longitude':114.02375890938951,
+            },
+            'TUEN MUN': {
+                'name':'TUEN MUN',
+                'latitude':22.39509752493444, 
+                'longitude':113.97929821572177,
+            },
+            'TSUEN WAN': {
+                'name':'TSUEN WAN',
+                'latitude':22.380913023614593, 
+                'longitude':114.10483640411181,
+            },
+            'SHATIN': {
+                'name':'SHATIN',
+                'latitude':22.39567098477031, 
+                'longitude':114.18670913567028,
+            },
+            'SHA TIN': {
+                'name':'SHA TIN',
+                'latitude':22.39567098477031, 
+                'longitude':114.18670913567028,
+            },
+            'KWAI CHUNG': {
+                'name':'KWAI CHUNG',
+                'latitude':22.37406877003002, 
+                'longitude':114.11624896669262,
+            },
+            'SHAM SHUI PO': {
+                'name':'SHAM SHUI PO',
+                'latitude':22.324581323126527, 
+                'longitude':114.15644103491213,
+            },
+            'MONG KOK': {
+                'name':'MONG KOK',
+                'latitude':22.31882674036733, 
+                'longitude':114.15987674952666,
+            },
+            'TUNG CHUNG': {
+                'name':'TUNG CHUNG',
+                'latitude':22.282589394723665, 
+                'longitude':113.94520448629142,
+            },
+            'CENTRAL': {
+                'name':'CENTRAL',
+                'latitude':22.2799590403546, 
+                'longitude':114.16612350337158,
+            },
+            'CENTRAL/WESTERN': {
+                'name':'CENTRAL/WESTERN',
+                'latitude':22.28532988666009, 
+                'longitude':114.14269817645378,
+            },
+            'SOUTHERN': {
+                'name':'SOUTHERN',
+                'latitude':22.247376119378032, 
+                'longitude':114.16203384734007,
+            },
+            'EASTERN': {
+                'name':'EASTERN',
+                'latitude':22.283493002255888, 
+                'longitude':114.22174605856657,
+            },
+            'CAUSEWAY BAY': {
+                'name':'CAUSEWAY BAY',
+                'latitude':22.2798588997558, 
+                'longitude':114.1857213360911,
+            },
+            'KWUN TONG': {
+                'name':'KWUN TONG',
+                'latitude':22.305447811846236, 
+                'longitude':114.23013537749924,
+            },
+            'TSEUNG KWAN O': {
+                'name':'TSEUNG KWAN O',
+                'latitude':22.306836517257125, 
+                'longitude':114.26344590855533,
+            },
+        }
         
         self.dates = all_dates
         self.stations = all_stations
