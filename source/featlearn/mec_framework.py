@@ -28,9 +28,9 @@ class Conv1DLSTM(nn.Module):
     def __init__(self, in_channels, out_size, time_length):
         super(Conv1DLSTM, self).__init__()
 
-        filters = [16, 32, 64] 
-        # filters = [32, 64, 128]
-        kernels = [3, 5, 7]
+        # filters = [16, 32, 64] 
+        filters = [32, 64, 128]
+        kernels = [3, 5, 5]
         
         # filters = [16, 32, 64, 128]
         # kernels = [1, 3, 5, 7]
@@ -67,7 +67,7 @@ class Conv1DLSTM(nn.Module):
         
         self.dropout_in = nn.Dropout(0.5)
         
-        self.dense = nn.Linear(128*2, out_size)
+        # self.dense = nn.Linear(128*2, out_size)
         
     def forward(self, x):
         x = self.dropout_in(x)
@@ -109,7 +109,10 @@ class CNN(nn.Module):
         
         
         # filters = [16, 32, 64, 128]
-        filters = [32, 64, 128]
+        # filters = [32, 64, 128]
+        # filters = [16, 32, 64]
+        filters = [16, 32]
+        # filters = [8, 16, 32]
         # filters = [16, 32, 64, 128, 256]
         
         self.n_conv = len(filters)
@@ -130,7 +133,7 @@ class CNN(nn.Module):
         
         features_size = (time_length // (2 ** len(filters))) * filters[-1]
         self.dense = nn.Linear(features_size, out_size)
-        self.dropout_1 = nn.Dropout(0.1)
+        self.dropout_1 = nn.Dropout(0.3)
         # self.dropout_in = nn.Dropout(0.5)
         
         

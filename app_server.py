@@ -33,6 +33,8 @@ from sklearn.model_selection import train_test_split
 import aqi
 from fast_pytorch_kmeans import KMeans
 import torch
+from fastdist import fastdist
+
 
 import datetime
 epoch = datetime.datetime.utcfromtimestamp(0)
@@ -315,9 +317,9 @@ def getProjection():
     
     if granularity == 'months':
         EPOCHS = 20
-        # EPOCHS_CAE = 800
-        EPOCHS_CAE = 200
-        FEATURE_SIZE_CAE = 12 
+        EPOCHS_CAE = 800
+        # EPOCHS_CAE = 200
+        FEATURE_SIZE_CAE = 12
         N_NEIGHBORS = 15
     elif granularity == 'years':
         EPOCHS = 100
@@ -354,18 +356,19 @@ def getProjection():
         mts.time_features = model.encode(mts.X, batch_size=BATCH_SIZE)
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
     else:
-        # cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
-        # cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=200)
-        # _, mts.features = cae.encode(mts.X)
+        cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=200)
+        _, mts.features = cae.encode(mts.X)
         
-        cae = MEC_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
-        cae.fit(mts.X.transpose([0, 2, 1]), epochs=EPOCHS_CAE, batch_size=200, freq=10)
-        mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
+        # cae = MEC_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        # cae.fit(mts.X.transpose([0, 2, 1]), epochs=EPOCHS_CAE, batch_size=200, freq=10)
+        # mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
         # X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
         
         
     feature_DM = gpu_dist_matrix(mts.features)
-    
+    # feature_DM = fastdist.matrix_to_matrix_distance(mts.features, mts.features, fastdist.cosine, "cosine")
+    # print(feature_DM.shape) 
     reducer = umap.UMAP(n_components=2, metric='precomputed')
     
     coords = reducer.fit_transform(feature_DM)
