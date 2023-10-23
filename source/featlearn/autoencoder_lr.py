@@ -119,6 +119,111 @@ class EarlyStopper:
                 return True
         return False
 
+class WSense(nn.Module):
+    def __init__(self, in_channels, out_size):
+        super(WSense, self).__init__()
+        self.conv1 = nn.Conv1d(
+            in_channels, out_size, 5, 
+            stride = 1, 
+            padding_mode='replicate', 
+            padding = 'same'
+        )
+        self.elu = nn.ELU()
+        self.sig = nn.Sigmoid()
+        self.pooling = nn.AdaptiveMaxPool1d(1)
+        self.conv2 = nn.Conv1d(
+            out_size, out_size, 1, 
+            stride = 1, 
+            padding_mode='replicate', 
+            padding = 'same'
+        )
+    def forward(self, x):
+        x = self.elu(self.conv1(x))
+        feat = self.pooling(x)
+        att = self.sig(self.conv2(feat))
+        
+        x = feat * att
+        x = x.squeeze(dim=2)
+        return x
+    
+class GroupConvs(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size):
+        super(GroupConvs, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=1, padding='same', padding_mode='replicate'),
+            nn.BatchNorm1d(out_channels, eps=0.001),
+            nn.ELU(inplace=True),
+        )
+    def forward(self, x):
+        return self.features(x)
+
+class EncoderBranch(nn.Module):
+    def __init__(self, input_size, encoding_size):
+        super(EncoderBranch, self).__init__()
+        
+        # self.wsense = WSense(input_size, encoding_size)
+        
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(input_size, input_size // 2),  # Reduce input dimensions
+        #     nn.ReLU(),
+        #     nn.Linear(input_size // 2, encoding_size),  # Reduce to the specified encoding size
+        #     nn.ReLU(),
+        # )
+        self.encoder = nn.Sequential(
+            GroupConvs(1, 16, 3),
+            nn.MaxPool1d(2),
+            GroupConvs(16, 32, 3),
+            nn.MaxPool1d(2),
+            WSense(32, encoding_size),
+        )
+        
+    def forward(self, x):
+        x = self.encoder(torch.unsqueeze(x, dim=1))
+        return x
+
+
+class MainEncoder(nn.Module):
+    def __init__(self, in_channels, length, feature_size):
+        super(MainEncoder, self).__init__()
+        self.in_channels = in_channels
+        self.heads = nn.ModuleList([EncoderBranch(length, feature_size) for i in range(in_channels)])
+        self.feat_mixture = nn.Conv1d(in_channels, 1, kernel_size=1)
+
+    def forward(self, x):
+        
+        feats = []
+        for i in range(self.in_channels):
+            v = self.heads[i](x[:, :, i])
+            v = nn.functional.normalize(v, dim=1)
+            feats.append(v)
+        
+        feats = torch.stack(feats, dim=1)
+        emb = self.feat_mixture(feats)
+        emb = nn.functional.normalize(emb, dim=1)
+        
+        return emb.squeeze(dim=1)
+
+
+class MainAutoEncoder(nn.Module):
+    def __init__(self, in_channels, length, feature_size):
+        super(MainAutoEncoder, self).__init__()
+        self.encoder = MainEncoder(in_channels, length, feature_size)
+        self.D = in_channels
+        self.T = length
+        
+        self.decoder = nn.Sequential(
+            nn.Linear(feature_size, (in_channels * length) // 2),  # Increase dimensions
+            nn.ReLU(),
+            nn.Linear((in_channels * length) // 2, in_channels * length)  # Reconstruct original dimensions
+        )
+        
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        decoded = decoded.reshape([x.shape[0], self.T, self.D])
+        
+        return decoded, encoded
 
 class CNN_AE(nn.Module):
     def __init__(self, n_channels, length, out_channels=128, repr_size = 16):
@@ -175,8 +280,8 @@ class CNN_AE(nn.Module):
 
         self.unpool3 = nn.MaxUnpool1d(kernel_size=2, stride=2, padding=0)
         self.d_conv3 = nn.Sequential(nn.ConvTranspose1d(32, n_channels, kernel_size=5, stride=1, bias=False, padding=2),
-                                     nn.BatchNorm1d(n_channels),
-                                     nn.ReLU())
+                                     nn.BatchNorm1d(n_channels)
+                                     )
 
 
 
@@ -190,23 +295,27 @@ class CNN_AE(nn.Module):
         
         x = x.reshape(x.shape[0], -1)
         x_encoded = self.lin1(x)
-        x_encoded = F.normalize(x_encoded, dim=1)
+        
+        # x_encoded = F.normalize(x_encoded, dim=1)
         # x_encoded
         x = self.lin2(x_encoded)
         x = x.reshape(-1, self.out_channels, self.length//8)
         
         x = self.d_conv1(self.unpool1(x, indice3))
+        # x = self.d_conv1(x)
         # x = self.d_conv1(self.unpool1(x_encoded, indice3))
         if self.padding1:
             # m = nn.ConstantPad1d((0, 1), 1)
             # x  = m(x)
             x = nn.functional.pad(x, (0, 1), mode = 'reflect')
         x = self.d_conv2(self.unpool2(x, indice2))
+        # x = self.d_conv2(x)
         if self.padding2:
             # m = nn.ConstantPad1d((0, 1), 1)
             # x  = m(x)
             x = nn.functional.pad(x, (0, 1), mode = 'reflect')
         x = self.d_conv3(self.unpool3(x, indice1))
+        # x = self.d_conv3(x)
         if self.padding3:
             # m = nn.ConstantPad1d((0, 1), 1)
             # x  = m(x)
@@ -216,6 +325,31 @@ class CNN_AE(nn.Module):
         # x_encoded = x_encoded.reshape(x_encoded.shape[0], -1)
         
         return x_decoded, x_encoded
+
+class Autoencoder(nn.Module):
+    def __init__(self, input_size, encoding_size):
+        super(Autoencoder, self).__init__()
+        
+        # Encoder layers
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, input_size // 2),  # Reduce input dimensions
+            nn.ReLU(),
+            nn.Linear(input_size // 2, encoding_size),  # Reduce to the specified encoding size
+            nn.ReLU(),
+        )
+        
+        # Decoder layers
+        self.decoder = nn.Sequential(
+            nn.Linear(encoding_size, input_size // 2),  # Increase dimensions
+            nn.ReLU(),
+            nn.Linear(input_size // 2, input_size),  # Reconstruct original dimensions
+            nn.Sigmoid()  # Sigmoid for output between 0 and 1 (if your data is normalized)
+        )
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded, encoded
 
 
 class CNN_VAE(nn.Module):
@@ -469,7 +603,10 @@ class AutoencoderFL():
     def __init__(self, in_channels, in_time, feature_size = 128):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.time_length = in_time
-        self.net = CNN_AE(in_channels, self.time_length, repr_size=feature_size).to(self.device)
+        # self.net = MainAutoEncoder(in_channels, self.time_length, feature_size).to(self.device)
+        # self.net = CNN_AE(self.time_length * in_channels, feature_size).to(self.device)
+        self.net = CNN_AE(in_channels, self.time_length, out_channels=128, repr_size = feature_size).to(self.device)
+        
         self.path = 'cae.pt'
         self.best_epoch = None
     
@@ -483,7 +620,8 @@ class AutoencoderFL():
             dataset_val = MyDataset(X_val)
             dataloader_val = DataLoader(dataset_val, batch_size=batch_size, shuffle=True)
         optimizer  = optim.Adam(self.net.parameters(),lr = 0.0005)
-        criterion = nn.MSELoss()
+        # criterion = nn.MSELoss()
+        criterion = nn.L1Loss()
         logs = ValueLogger("Train loss   ", epoch_freq=50)
         val_logs = ValueLogger("Val loss   ", epoch_freq=50)
         
@@ -494,8 +632,10 @@ class AutoencoderFL():
                 x = data.to(self.device)
                 self.net.train()
                 optimizer.zero_grad()
+                # x_o, _ = self.net(x.reshape([x.shape[0], -1]))
                 x_o, _ = self.net(x)
                 
+                # loss = criterion(x.reshape([x.shape[0], -1]) , x_o.reshape([x.shape[0], -1]))
                 loss = criterion(x, x_o)
                     
                 loss.backward()
@@ -561,6 +701,7 @@ class AutoencoderFL():
         with torch.torch.no_grad():
             for i, data in enumerate(dataloader):
                 x = data.to(self.device)
+                # dec, enc = self.net(x.reshape([x.shape[0], -1]))
                 dec, enc = self.net(x)
                 decoded.append(dec)
                 encoded.append(enc)

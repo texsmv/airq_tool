@@ -2,9 +2,10 @@ import pandas as pd
 import numpy as np
 import os
 import io
+from datetime import datetime, timedelta
 
 
-from .utils import dfMonthWindows, dfDailyWindows, dfYearWindows, tryFillMissing
+from .utils import CO_MOLECULAR_WEIGHT, NO2_MOLECULAR_WEIGHT, O3_MOLECULAR_WEIGHT, SO2_MOLECULAR_WEIGHT, dfMonthWindows, dfDailyWindows, dfYearWindows, ppb_to_ug_per_m3, ppm_to_mg_per_m3, tryFillMissing
 years = ['2000', '2001', '2002', '2003', '2004', '2005', '2006', '2007', '2008', '2009', '2010', '2011', '2012', '2013', '2014', '2015','2016', '2017', '2018', '2019', '2020']
 # years = ['2013']
 pollutants = ['NO', 'NOx', 'NO2', 'SO2', 'CO', 'O3', 'PM25']
@@ -25,12 +26,13 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
     
     windows_map = {}
     for pollutant in pollutants:
+        print(pollutant)
         conc_map = {}
         aux_map = {}
         for i in range(len(years)):
             with open(os.path.join(DB_PATH, "{}-{}.csv".format(pollutant, years[i])), "r") as f:
                 data = f.read()
-            
+            print(years[i])
             slices = data.split("\n\n")
             for slice in slices:
                 pos = slice.find('Station ID')
@@ -47,15 +49,21 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
                     values = np.zeros((365, 24))
                     dates = []
                     for index, row in df.iterrows():
+                        # print('-')
+                        # print(index)
                         if index < 365:
                             for k in range(len(hours)):
                                 values[index][k] = (row['H{}'.format(hours[k])])
                                 if granularity == 'daily':
-                                    
-                                    dateStr = '{}T{}:00:00.000000000'.format(row['Date'], hoursD[k])
-                                    # date = pd.to_datetime(dateStr, infer_datetime_format=True)
-                                    date = np.datetime64(dateStr)
-                                    dates.append(date)
+                                    if k == 0:
+                                        date = datetime.strptime('{} 00:00:00'.format(row['Date']), '%Y-%m-%d %H:%M:%S')
+                                    else:
+                                        date = date + timedelta(hours=1)
+                                    if date in dates:
+                                        # ! FIX for dates error on csv
+                                        dates.append(date + timedelta(days=1))
+                                    else:
+                                        dates.append(date)
                                 elif k == 0:
                                     dateStr = '{}T{}:00:00.000000000'.format(row['Date'], hoursD[k])
                                     date = np.datetime64(dateStr)
@@ -102,15 +110,21 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
                 values, dates = dfDailyWindows(df_conc, fill_missing=fill_missing, maxMissing=max_missing)
 
             for k in range(len(values)):
-                # if granularity == 'daily':
-                #     dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
-                # else:    
-                #     dKey = '{}-{}'.format(dates[k].year, dates[k].month)
                 dKey = str(dates[k])
+                if pollutant == 'CO':
+                    values[k] = ppm_to_mg_per_m3(values[k], CO_MOLECULAR_WEIGHT)
+                if pollutant == 'NO2':
+                    values[k] = ppb_to_ug_per_m3(values[k], NO2_MOLECULAR_WEIGHT)
+                if pollutant == 'O3':
+                    values[k] = ppb_to_ug_per_m3(values[k], O3_MOLECULAR_WEIGHT)
+                if pollutant == 'SO2':
+                    values[k] = ppb_to_ug_per_m3(values[k], SO2_MOLECULAR_WEIGHT)
+                
                 station_map[dKey] = (values[k], dates[k])
+                
             conc_map[station] = station_map
+            
         windows_map[pollutant] = conc_map
-    
     np.save(DB_CACHE_PATH, windows_map)
     return windows_map
 

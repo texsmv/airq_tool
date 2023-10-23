@@ -5,17 +5,16 @@ from flask import jsonify
 import json
 import sys
 import numpy as np
-# from sklearn.cluster import KMeans
 import pandas as pd
-# from contrastive import CPCA
 import matplotlib.pyplot as plt
+from sklearn.cluster import DBSCAN
 
 from source.tserie import TSerie
 from sklearn.decomposition import PCA
 from cuml.neighbors import NearestNeighbors
 from cuml.manifold import UMAP
 from ccpca import CCPCA
-from source.utils import folding_2D, magnitude_shape_plot
+from source.utils import AVAILABLE_POLUTANTS, folding_2D, magnitude_shape_plot
 from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
@@ -59,36 +58,15 @@ BATCH_SIZE = 240
 plt.rcParams["figure.figsize"] = [7.50, 3.50]
 plt.rcParams["figure.autolayout"] = True
 
-available_polls = ['O3', 'PM25', 'PM10', 'FSP', 'NO2', 'SO2', 'CO']
+
 
 
 def filter_iaqi(pollutants, values): # values shape NxD
     out_index = []
     for i in range(len(pollutants)):
-        if pollutants[i] in available_polls:
+        if pollutants[i] in AVAILABLE_POLUTANTS:
             out_index.append(i)
     return np.array(pollutants)[out_index], values[:, :, out_index]
-
-def daily_iaqi(pollutant, data):
-    if pollutant == 'O3':
-        d_mean = data.mean()
-        return aqi.to_iaqi('o3_8h', str(d_mean), algo=aqi.ALGO_MEP)
-    elif pollutant == 'PM25' or pollutant == 'FSP' or pollutant == 'MP25':
-        d_mean = data.mean()
-        return aqi.to_iaqi(aqi.POLLUTANT_PM25, str(d_mean), algo=aqi.ALGO_EPA)
-    elif pollutant == 'PM10' or pollutant == 'RSP' or pollutant == 'MP10':
-        d_mean = data.mean()
-        return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_EPA)
-    elif pollutant == 'NO2':
-        d_mean = data.mean()
-        return aqi.to_iaqi('no2_24h', str(d_mean), algo=aqi.ALGO_MEP)
-    elif pollutant == 'SO2':
-        d_mean = data.mean()
-        return aqi.to_iaqi('so2_24h', str(d_mean), algo=aqi.ALGO_MEP)
-    elif pollutant == 'CO':
-        d_mean = data.mean()
-        return aqi.to_iaqi('co_24h', str(d_mean), algo=aqi.ALGO_MEP)
-
 
 
 def get_aqi(pollutants, values): # values shape NxD
@@ -99,10 +77,10 @@ def get_aqi(pollutants, values): # values shape NxD
         if pollutant == 'O3':
             d_mean = data.mean()
             iaqis.append(('o3_8h', str(d_mean)))
-        elif pollutant == 'PM25' or pollutant == 'FSP':
+        elif pollutant == 'PM25' or pollutant == 'FSP' or pollutant == 'MP25':
             d_mean = data.mean()
             iaqis.append(('pm25', str(d_mean)))
-        elif pollutant == 'PM10' or pollutant == 'RSP':
+        elif pollutant == 'PM10' or pollutant == 'RSP' or pollutant == 'MP10':
             d_mean = data.mean()
             # return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_EPA)
             iaqis.append(('pm10', str(d_mean)))
@@ -181,7 +159,6 @@ mts = None
 g_coords = None
 space_DM = None
 time_DM = None
-feature_DM = None
 latlong = None
 timeInMs = None
 
@@ -234,13 +211,13 @@ def correlation():
     # back_mts.folding_features_v1()
     # fore_mts.folding_features_v1()
     
-    cpca = CPCA(standardize=False)
+    # cpca = CPCA(standardize=False)
     # result = cpca.fit_transform(background=back_mts.features, foreground=fore_mts.features, plot=False)
-    result = cpca.fit_transform(background=mts.features[back_positions], foreground=mts.features[positions], plot=False)
+    # result = cpca.fit_transform(background=mts.features[back_positions], foreground=mts.features[positions], plot=False)
     
-    allCoords = np.zeros((n, 2))
+    # allCoords = np.zeros((n, 2))
     
-    allCoords[positions] = result[1]
+    # allCoords[positions] = result[1]
     
     
     X = mts.X_orig[positions]
@@ -254,7 +231,8 @@ def correlation():
     
     resp_map = {}
     resp_map['correlation_matrix'] = corr_matrix.flatten().tolist()
-    resp_map['coords'] = allCoords.flatten().tolist()
+    print(corr_matrix)
+    # resp_map['coords'] = allCoords.flatten().tolist()
     
     
     min_values = []
@@ -293,13 +271,57 @@ def getIaqis():
         # print(aqi)
         for k in range(len(filtered_pollutans)):
             pollutant = filtered_pollutans[k]
-            iaqi = [int(daily_iaqi(pollutant, filtered_windows[i,:,k])) for i in range(len(filtered_windows))]
+            # iaqi = [int(daily_iaqi(pollutant, filtered_windows[i,:,k])) for i in range(len(filtered_windows))]
+            iaqi = [int(mts.iaqi[pollutant][i]) for i in range(len(filtered_windows))]
+            # iaqi
             resp_map[pollutant] = iaqi
             # print(iaqi)
     else:
         resp_map['status']= 'ERROR'
     return jsonify(resp_map)
+
+# def 
+
+def groupRank(cluster_mean, series):
+    # ranks = np.array([np.abs(cluster_mean - serie).sum() for serie in series]).sum()
+    rank = np.array([np.linalg.norm(cluster_mean - serie) for serie in series]).sum()
+    return rank
     
+
+@app.route("/pollutantRanking", methods=['POST'])
+def pollutantRanking():
+    global dataset
+    global mts
+    
+    selection = np.array(json.loads(request.form['selectionIds']))
+    
+    ranks={}
+    for polPos in range(mts.D):
+        ranks[polPos] = groupRank(mts.X.mean(axis=2), mts.X[selection, :, polPos])
+        # print(mts.X[selection, :, polPos].shape)
+    
+    
+    # filtered_pollutans, filtered_windows = filter_iaqi(pollutants, mts.X_orig)
+    # # print(filtered_pollutans)
+    # # print(filtered_windows.shape) 
+    resp_map = {
+        'ranks':ranks
+    }
+    # if len(filtered_pollutans) != 0:
+    #     resp_map['status']= 'DONE'
+    #     aqi = [int(get_aqi(filtered_pollutans, filtered_windows[i])) for i in range(len(filtered_windows))]
+    #     resp_map['aqi'] = aqi
+    #     # print(aqi)
+    #     for k in range(len(filtered_pollutans)):
+    #         pollutant = filtered_pollutans[k]
+    #         # iaqi = [int(daily_iaqi(pollutant, filtered_windows[i,:,k])) for i in range(len(filtered_windows))]
+    #         iaqi = [int(mts.iaqi[pollutant][i]) for i in range(len(filtered_windows))]
+    #         # iaqi
+    #         resp_map[pollutant] = iaqi
+    #         # print(iaqi)
+    # else:
+    #     resp_map['status']= 'ERROR'
+    return jsonify(resp_map)
     
 @app.route("/getProjection", methods=['POST'])
 def getProjection():
@@ -317,9 +339,9 @@ def getProjection():
     
     if granularity == 'months':
         EPOCHS = 20
-        EPOCHS_CAE = 800
-        # EPOCHS_CAE = 200
-        FEATURE_SIZE_CAE = 12
+        # EPOCHS_CAE = 100
+        EPOCHS_CAE = 1000
+        FEATURE_SIZE_CAE = 10
         N_NEIGHBORS = 15
     elif granularity == 'years':
         EPOCHS = 100
@@ -330,10 +352,11 @@ def getProjection():
     elif granularity == 'daily':
         EPOCHS = 20
         # EPOCHS_CAE = 200
-        EPOCHS_CAE = 50
+        EPOCHS_CAE = 200
         FEATURE_SIZE_CAE = 8
         N_NEIGHBORS = 15
-    _, _ = mts.minMaxNormalizization(returnValues=False)
+    # _, _ = mts.minMaxNormalizization(returnValues=False)
+    mts.robustScaler(returnValues=False)
     
     if MODE == 0:    
         X_filtered = mts.X[:, :, pollPositions]
@@ -365,11 +388,16 @@ def getProjection():
         # mts.features = cae.encode(mts.X.transpose([0, 2, 1]))
         # X_train, X_val = train_test_split(mts.X.transpose([0, 2, 1]))
         
-        
+    
+    print('[ROOT]: Computing distance matrix')    
     feature_DM = gpu_dist_matrix(mts.features)
+    feature_DM = feature_DM / np.max(feature_DM)
+    print('[ROOT]: done')    
+    
+    
     # feature_DM = fastdist.matrix_to_matrix_distance(mts.features, mts.features, fastdist.cosine, "cosine")
     # print(feature_DM.shape) 
-    reducer = umap.UMAP(n_components=2, metric='precomputed')
+    reducer = umap.UMAP(n_components=2, metric='precomputed', n_neighbors=10)
     
     coords = reducer.fit_transform(feature_DM)
     g_coords = coords
@@ -389,6 +417,7 @@ def getCustomProjection():
     global mts
     global timeInMs
     global latlong
+    global g_coords
     
     pollutantPosition = request.form['pollutantPosition']
     pollutantPosition = int(pollutantPosition)
@@ -397,7 +426,7 @@ def getCustomProjection():
     N_NEIGHBORS = int(request.form['neighbors'])
     delta = float(request.form['delta'])
     beta = float(request.form['beta'])
-    
+    n_neightbors = int(float(request.form['beta']))
 
 
     feature_DM = gpu_dist_matrix(mts.features[itemPositions])
@@ -406,52 +435,44 @@ def getCustomProjection():
     space_DM = gpu_dist_matrix(latlong[itemPositions])
     space_DM = space_DM / (np.max(space_DM) + 0.00000001)
     
-    time_DM = gpu_dist_matrix(timeInMs[itemPositions])
-    time_DM = time_DM / np.max(time_DM)
+    # time_DM = gpu_dist_matrix(timeInMs[itemPositions])
+    # time_DM = time_DM / np.max(time_DM)
     
-    # print(space_DM.shape)
-    # print(time_DM.shape)
     
-    distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
-    # reducer = umap.UMAP(n_components=2, metric='cosine', min_dist=0.0, n_neighbors=5)
-    reducer = umap.UMAP(n_components=2, metric='precomputed',n_neighbors=5)
+    distM = feature_DM * (1 - delta) + space_DM * delta
+    # distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
+    
+    reducer = umap.UMAP(n_components=2, metric='precomputed',n_neighbors=n_neightbors)
     coords = reducer.fit_transform(distM)
+    
+    g_coords[itemPositions] = coords
     reducer = None
     
-    
-    # backPositions = np.argwhere(filtered != True).squeeze()
-    # ccpca = CCPCA(n_components=2)
-    # Xf = mts.features[itemPositions]
-    # Xb = mts.features[backPositions]
-    
-    # ccpca.fit(
-    #     Xf,
-    #     Xb,
-    #     var_thres_ratio=0.5,
-    #     n_alphas=40,
-    #     max_log_alpha=0.5,
-    # )
-    # coords = ccpca.transform(Xf)
-    
-    # print(Xb.shape)
-    # print(Xf.shape)
-    # print(coords.shape)
-    # best_alpha = ccpca.get_best_alpha()
-    # cpca_fcs = ccpca.get_feat_contribs()
-    
-    # print(best_alpha)
-    # print(cpca_fcs)
+
     
     # Outliers
-    
     ts = mts.X[itemPositions, :, pollutantPosition]
+    
+    
     cmean, cvar, outliers = magnitude_shape_plot(ts)
+    
+    mmean = cvar.mean()
+    lower_o = np.bitwise_and(outliers == 1, cvar < mmean)
+    upper_o = np.bitwise_and(outliers == 1, cvar > mmean)
+    
+    n_outliers = np.zeros(outliers.shape[0]).astype(int)
+    n_outliers[lower_o] = 1
+    n_outliers[upper_o] = 2
+    n_outliers[outliers == 0] = 0
+    
     
     resp_map = {}
     resp_map['coords'] = coords.flatten().tolist()
     resp_map['cmean'] = cmean.tolist()
     resp_map['cvar'] = cvar.tolist()
-    resp_map['outliers'] = outliers.tolist()
+    resp_map['outliers'] = n_outliers.tolist()
+    
+    print(resp_map['outliers'])
     
     return jsonify(resp_map)
 
@@ -484,7 +505,7 @@ def spatioTemporalProjection():
     # reducer = umap.UMAP(n_components=2, metric='cosine')
     #  reducer.transform(mts.features)
     coords = reducer.fit_transform(distM)
-    g_coords = coords
+    # g_coords = coords
     reducer = None
     
     
@@ -511,33 +532,11 @@ def getFdaOutliers():
     cmean, cvar, outliers = magnitude_shape_plot(ts)
     
     mmean = cvar.mean()
-    # mean = np.median(cmean)
-     
-    
-    # print(mean)
-    # print(cmean)
-    # print(cmean.median())
-    # print(np.median(cmean))
-    # print(np.mean(cmean))
-    # print(np.std(cmean))
-    
-    # print(np.median(cvar))
-    # print(np.mean(cvar))
-    # print(np.std(cvar))
-    # print(cmean.std())
-    # print(outliers)
-    # print(outliers.shape)
-    # print(cmean.shape)
-    # w_mean = ts.mean(axis=1)
-    # w_mean = ts.median(axis=1)
-    # print(w_mean.shape)
+
     
     
     lower_o = np.bitwise_and(outliers == 1, cvar < mmean)
     upper_o = np.bitwise_and(outliers == 1, cvar > mmean)
-    
-    # lower_o = cvar < mmean
-    # upper_o = cvar > mmean
     
     
     n_outliers = np.zeros(outliers.shape[0]).astype(int)
@@ -545,15 +544,6 @@ def getFdaOutliers():
     n_outliers[upper_o] = 2
     n_outliers[outliers == 0] = 0
     
-    # print('-------------')
-    # print(cvar[lower_o].mean())
-    # print(cvar[outliers == 0].mean())
-    # print(cvar[upper_o].mean())
-    # print('-------------')
-    
-    # print(n_outliers)
-    # print(np.unique(n_outliers, return_counts=True))
-    # print(n_outliers.shape)
     
     resp_map = {}
     resp_map['cmean'] = cmean.tolist()
@@ -573,15 +563,56 @@ def kmeans():
     n_clusters = int(n_clusters)
     
     # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
-    feat = torch.from_numpy(mts.features).to('cuda')
+    # feat = torch.from_numpy(mts.features).to('cuda')
+    
+    feat = torch.from_numpy(g_coords).to('cuda')
     kmeans = KMeans(n_clusters, max_iter = 300, mode='euclidean')
     labels = kmeans.fit_predict(feat)
     classes = labels.cpu().numpy()
-    # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(g_coords)
-    # classes = kmeans.labels_
-        
+    
+    
+    # clustering = DBSCAN(eps=0.2, min_samples=5)
+    # clustering.fit(g_coords)
+    # classes = clustering.labels_
+    
+    # n_classes = len(np.unique(classes))
+    
+    
+    # classes[classes == -1] = n_classes
+    # classes = np.unique(labels)
+    
+    
+    
     resp_map = {}
     resp_map['classes'] = classes.tolist()
+    
+    return jsonify(resp_map)
+
+
+@app.route("/dbscan", methods=['POST'])
+def dbscan():
+    global dataset
+    global granularity
+    global mts
+    global g_coords
+
+    eps = request.form['eps']
+    eps = float(eps)
+    
+    clustering = DBSCAN(eps=eps, min_samples=5)
+    clustering.fit(g_coords)
+    classes = clustering.labels_
+    n_classes = len(np.unique(classes))
+    
+    if (classes == -1).any():
+        classes[classes == -1] = n_classes - 1
+        
+    print(classes)
+    
+    print(np.unique(classes))
+    resp_map = {}
+    resp_map['classes'] = classes.tolist()
+    resp_map['n_classes'] = len(np.unique(classes))
     
     return jsonify(resp_map)
 
@@ -647,7 +678,7 @@ def loadWindows():
     dataset.common_windows(pollutants, stations, max_windows=MAX_WINDOWS)
     
     
-    resp_map = {}
+    resp_map = {}   
     
     
     resp_map['pollutants'] = dataset.window_pollutants
@@ -662,7 +693,7 @@ def loadWindows():
     resp_map['windows'] = {}
     
     
-    mts = TSerie(X=dataset.windows, y=dataset.window_station_ids)
+    mts = TSerie(X=dataset.windows, y=dataset.window_station_ids, iaqi = dataset.window_iaqis)
     
     
     if mts.T > 40:
@@ -712,7 +743,7 @@ def loadWindows():
     timeInMs = np.expand_dims(timeInMs, axis=1)
     
     # Space coordinates
-    stations = dataset.window_stations_all
+    stations = dataset.window_stations
     data_info = dataset.stations
     station_ids = dataset.window_station_ids
     
@@ -784,22 +815,18 @@ def object():
                 resp_map['labels'][k] = v.flatten().tolist()
                 
         if 'labelsNames' in objects[objectName]:
-            # print('KHE?')
             resp_map['labelsNames'] = objects[objectName]['labelsNames']
         else:
             resp_map['labelsNames'] = {}
             for k, v in objects[objectName]['labels'].items():
                 labls = np.unique(v.flatten())
-                print('keys')
-                print(k)
-                print(labls)
                 resp_map['labelsNames'][k] = { str(l):int(l) for l in labls }
             
         if 'dimensions' in objects[objectName]:
             resp_map['dimensions'] = objects[objectName]['dimensions'].flatten().tolist()
         else:
             resp_map['dimensions'] = [str(i) for i in range (D)]
-        
+            
     return jsonify(resp_map)
 
     

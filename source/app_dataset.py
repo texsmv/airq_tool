@@ -2,7 +2,7 @@ import numpy as np
 from .read_brasil import read_brasil
 from .read_hongkong import read_hongkong
 from .read_ontario import read_ontario, read_ontario_stations
-from .utils import commonWindows, sample_data, getAllStations
+from .utils import AVAILABLE_POLUTANTS, commonWindows, get_annualy_iaqis_map, get_monthly_iaqis_map, sample_data, getAllStations
 
 class OntarioDataset:
     all_pollutants = ['NO', 'NOx', 'NO2', 'SO2', 'CO', 'O3', 'PM25']
@@ -10,6 +10,8 @@ class OntarioDataset:
         self.windows_map = read_ontario(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
         self.stations_map = read_ontario_stations()
         self.pollutants = list(self.windows_map.keys())
+        self.name='ontario'
+        self.granularity = granularity
         
         
         n_map = {}
@@ -59,30 +61,103 @@ class OntarioDataset:
         
 
     def common_windows(self, pollutants, stations, max_windows = 10000):
+        print('IN STATIONS: {} - {}'.format(len(stations), stations))
         self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(
             self.windows_map, 
             pollutants, 
             stations
         )
+        print('OUT STATIONS: {} - {}'.format(len(self.window_stations), self.window_stations))
         
         N = len(self.windows) 
         if N > max_windows:
             indices = np.arange(N)
             np.random.shuffle(indices)
-            # print('INDICES : {}'.format(indices[:10]))
             idx = indices[:max_windows]
             idx = np.array(idx)
         
             self.windows = self.windows[idx]
             self.window_dates = self.window_dates[idx]
-            
-            self.window_station_ids = np.array(self.window_station_ids)
             self.window_station_ids = self.window_station_ids[idx]
             
         
         self.window_pollutants = pollutants
-        self.window_stations_all = self.window_stations
-        self.window_stations = self.window_stations[np.unique(self.window_station_ids)] 
+        
+        daily_iaqis = np.load("{}_daily_iaqis.npy".format(self.name), allow_pickle=True)[()]
+        
+        print('')
+        print('Loaded stations: {}'.format(np.unique(self.window_stations)))
+        print('')
+        for stationId in np.unique(self.window_station_ids):
+            station = self.window_stations[stationId]
+            print('STATION: {}'.format(station))
+            
+            stationDates = self.window_dates[self.window_station_ids == stationId]
+            
+            print(np.unique(stationDates))
+        print('')
+        print('-----------------------------------------------------')
+        
+        
+        if self.granularity == 'daily':
+            self.iaqis_map = daily_iaqis
+        elif self.granularity == 'months':
+            self.iaqis_map = get_monthly_iaqis_map(daily_iaqis)
+        else:
+            self.iaqis_map = get_annualy_iaqis_map(daily_iaqis)
+        
+        wrong_ids = []
+        self.window_iaqis = {}
+        for poll in pollutants:
+            print('Gettin IAQI poll: {}'.format(poll))
+            if poll not in AVAILABLE_POLUTANTS:
+                continue
+            self.window_iaqis[poll] = []
+            for i in range(len(self.windows)):
+                station = self.window_stations[self.window_station_ids[i]]
+                date = self.window_dates[i]
+                # print(date)
+                try:
+                    if self.granularity == 'daily':
+                        iaqi = self.iaqis_map[poll][station][date.year][date.month][date.day]
+                    if self.granularity == 'months':
+                        iaqi = self.iaqis_map[poll][station][date.year][date.month]
+                    if self.granularity == 'years':
+                        iaqi = self.iaqis_map[poll][station][date.year]
+                except:
+                    iaqi = -1
+                    wrong_ids.append(i)
+                    print('---------------------------------------------------')
+                    print('Station: {} Data: {}'.format(station, date))
+                    print(self.iaqis_map[poll].keys())
+                    print(self.iaqis_map[poll][station].keys())
+                    print('---------------------------------------------------')
+                    # break
+                    
+                    
+                self.window_iaqis[poll].append(iaqi)
+                
+            self.window_iaqis[poll] = np.array(self.window_iaqis[poll])
+        
+        wrong_ids = np.sort(np.unique(wrong_ids))
+        if len(wrong_ids) != 0:
+            print('removing wrong indexes')
+            print(wrong_ids)
+            print(type(wrong_ids[0]))
+            print(wrong_ids.shape)
+            print(self.windows.shape)
+            
+            mask = np.ones(len(self.windows), dtype=bool)
+            mask[wrong_ids] = False
+            self.windows = self.windows[mask]
+            self.window_dates = self.window_dates[mask]
+            self.window_station_ids = self.window_station_ids[mask]
+            for poll in pollutants:
+                if poll not in AVAILABLE_POLUTANTS:
+                    continue
+                self.window_iaqis[poll] = self.window_iaqis[poll][mask]
+
+
     
     def dateRanges(self):
         return self.dates[0], self.dates[-1]
@@ -100,7 +175,9 @@ class BrasilDataset:
     def __init__(self, granularity='years', cache=True, fill_missing=False, max_missing=0.1):
         self.windows_map = read_brasil(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
         self.pollutants = list(self.windows_map.keys())
+        self.granularity = granularity
         
+        self.name='brasil'
         
         all_stations = getAllStations(self.windows_map, self.all_pollutants).tolist()
         
@@ -437,8 +514,81 @@ class BrasilDataset:
         
         self.window_pollutants = pollutants
         
-        self.window_stations_all = self.window_stations
-        self.window_stations = self.window_stations[np.unique(self.window_station_ids)] 
+        daily_iaqis = np.load("{}_daily_iaqis.npy".format(self.name), allow_pickle=True)[()]
+        
+        print('')
+        print('Loaded stations: {}'.format(np.unique(self.window_stations)))
+        print('')
+        for stationId in np.unique(self.window_station_ids):
+            station = self.window_stations[stationId]
+            print('STATION: {}'.format(station))
+            
+            stationDates = self.window_dates[self.window_station_ids == stationId]
+            
+            print(np.unique(stationDates))
+        print('')
+        print('-----------------------------------------------------')
+        
+        
+        if self.granularity == 'daily':
+            self.iaqis_map = daily_iaqis
+        elif self.granularity == 'months':
+            self.iaqis_map = get_monthly_iaqis_map(daily_iaqis)
+        else:
+            self.iaqis_map = get_annualy_iaqis_map(daily_iaqis)
+        
+        wrong_ids = []
+        self.window_iaqis = {}
+        for poll in pollutants:
+            print('Gettin IAQI poll: {}'.format(poll))
+            if poll not in AVAILABLE_POLUTANTS:
+                continue
+            self.window_iaqis[poll] = []
+            for i in range(len(self.windows)):
+                station = self.window_stations[self.window_station_ids[i]]
+                date = self.window_dates[i]
+                # print(date)
+                try:
+                    if self.granularity == 'daily':
+                        iaqi = self.iaqis_map[poll][station][date.year][date.month][date.day]
+                    if self.granularity == 'months':
+                        iaqi = self.iaqis_map[poll][station][date.year][date.month]
+                    if self.granularity == 'years':
+                        iaqi = self.iaqis_map[poll][station][date.year]
+                except:
+                    iaqi = -1
+                    wrong_ids.append(i)
+                    print('---------------------------------------------------')
+                    print('Station: {} Data: {}'.format(station, date))
+                    print(self.iaqis_map[poll].keys())
+                    print(self.iaqis_map[poll][station].keys())
+                    print('---------------------------------------------------')
+                    # break
+                    
+                    
+                self.window_iaqis[poll].append(iaqi)
+                
+            self.window_iaqis[poll] = np.array(self.window_iaqis[poll])
+        
+        wrong_ids = np.sort(np.unique(wrong_ids))
+        if len(wrong_ids) != 0:
+            print('removing wrong indexes')
+            print(wrong_ids)
+            print(type(wrong_ids[0]))
+            print(wrong_ids.shape)
+            print(self.windows.shape)
+            
+            mask = np.ones(len(self.windows), dtype=bool)
+            mask[wrong_ids] = False
+            self.windows = self.windows[mask]
+            self.window_dates = self.window_dates[mask]
+            self.window_station_ids = self.window_station_ids[mask]
+            for poll in pollutants:
+                if poll not in AVAILABLE_POLUTANTS:
+                    continue
+                self.window_iaqis[poll] = self.window_iaqis[poll][mask]
+
+
     
     def dateRanges(self):
         return self.dates[0], self.dates[-1]
@@ -451,6 +601,8 @@ class HongKongDataset:
     def __init__(self, granularity='years', cache=True, fill_missing=False, max_missing=0.1):
         self.windows_map = read_hongkong(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
         self.pollutants = list(self.windows_map.keys())
+        self.name='hongkong'
+        self.granularity = granularity
         
         all_stations = getAllStations(self.windows_map, self.all_pollutants).tolist()
 
@@ -564,16 +716,10 @@ class HongKongDataset:
         
         self.dates = all_dates
         self.stations = all_stations
-        print('Stations type: {}'.format(type(self.stations)))
         
 
     def common_windows(self, pollutants, stations, max_windows = 10000):
-        print('----------------------------------------------------------------')
-        print(stations)
-        print(type(stations))
-        print(self.windows_map.keys())
-        print(self.windows_map['O3'].keys())
-        print('----------------------------------------------------------------')
+        
         self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(
             self.windows_map, 
             pollutants, 
@@ -592,8 +738,83 @@ class HongKongDataset:
         
         self.window_pollutants = pollutants
         
-        self.window_stations_all = self.window_stations
-        self.window_stations = self.window_stations[np.unique(self.window_station_ids)] 
-    
+        # self.window_stations_all = self.window_stations
+        # self.window_stations = self.window_stations[np.unique(self.window_station_ids)] 
+        
+        daily_iaqis = np.load("{}_daily_iaqis.npy".format(self.name), allow_pickle=True)[()]
+        
+        print('')
+        print('Loaded stations: {}'.format(np.unique(self.window_stations)))
+        print('')
+        for stationId in np.unique(self.window_station_ids):
+            station = self.window_stations[stationId]
+            print('STATION: {}'.format(station))
+            
+            stationDates = self.window_dates[self.window_station_ids == stationId]
+            
+            print(np.unique(stationDates))
+        print('')
+        print('-----------------------------------------------------')
+        
+        
+        if self.granularity == 'daily':
+            self.iaqis_map = daily_iaqis
+        elif self.granularity == 'months':
+            self.iaqis_map = get_monthly_iaqis_map(daily_iaqis)
+        else:
+            self.iaqis_map = get_annualy_iaqis_map(daily_iaqis)
+        
+        wrong_ids = []
+        self.window_iaqis = {}
+        for poll in pollutants:
+            print('Gettin IAQI poll: {}'.format(poll))
+            if poll not in AVAILABLE_POLUTANTS:
+                continue
+            self.window_iaqis[poll] = []
+            for i in range(len(self.windows)):
+                station = self.window_stations[self.window_station_ids[i]]
+                date = self.window_dates[i]
+                # print(date)
+                try:
+                    if self.granularity == 'daily':
+                        iaqi = self.iaqis_map[poll][station][date.year][date.month][date.day]
+                    if self.granularity == 'months':
+                        iaqi = self.iaqis_map[poll][station][date.year][date.month]
+                    if self.granularity == 'years':
+                        iaqi = self.iaqis_map[poll][station][date.year]
+                except:
+                    iaqi = -1
+                    wrong_ids.append(i)
+                    print('---------------------------------------------------')
+                    print('Station: {} Data: {}'.format(station, date))
+                    print(self.iaqis_map[poll].keys())
+                    print(self.iaqis_map[poll][station].keys())
+                    print('---------------------------------------------------')
+                    # break
+                    
+                    
+                self.window_iaqis[poll].append(iaqi)
+                
+            self.window_iaqis[poll] = np.array(self.window_iaqis[poll])
+        
+        wrong_ids = np.sort(np.unique(wrong_ids))
+        if len(wrong_ids) != 0:
+            print('removing wrong indexes')
+            print(wrong_ids)
+            print(type(wrong_ids[0]))
+            print(wrong_ids.shape)
+            print(self.windows.shape)
+            
+            mask = np.ones(len(self.windows), dtype=bool)
+            mask[wrong_ids] = False
+            self.windows = self.windows[mask]
+            self.window_dates = self.window_dates[mask]
+            self.window_station_ids = self.window_station_ids[mask]
+            for poll in pollutants:
+                if poll not in AVAILABLE_POLUTANTS:
+                    continue
+                self.window_iaqis[poll] = self.window_iaqis[poll][mask]
+
+
     def dateRanges(self):
         return self.dates[0], self.dates[-1]

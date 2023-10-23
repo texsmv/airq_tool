@@ -2,10 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from .utils import mts_norm, mts_shape_norm, mts_smooth, ts_to_basis
+from sklearn.preprocessing import RobustScaler
 
 
 class TSerie:
-    def __init__(self, X: np.array, y:np.array):
+    def __init__(self, X: np.array, y:np.array, iaqi = None):
         self.N = X.shape[0]
         self.T = X.shape[1]
         self.D = X.shape[2]
@@ -15,6 +16,7 @@ class TSerie:
         self.X_norm = X
         self.y = y
         self.time_features = None
+        self.iaqi = iaqi
         
         self.magnitudes = None
         
@@ -46,6 +48,50 @@ class TSerie:
             X_c, _, magnitudes = mts_shape_norm(self.X)
             return X_c, magnitudes
         self.X, _, self.magnitudes = mts_shape_norm(self.X)
+    
+    # For univariate time series only
+    def robust_normalization(self, windows):
+        norm_windows = np.copy(windows)
+        scaler = RobustScaler(norm_windows)
+        return scaler.fit_transform(norm_windows)
+
+    
+    def mts_robust_norm(self, X, minl = [], maxl= []):
+        norm_X = X.transpose([0, 2, 1])
+        N, D, T = norm_X.shape
+        for d in range(D):
+            # if len(minl) == 0:
+            #     norm_windows, minv, maxv = robust_normalization(norm_X[:,d,:])
+            # else:
+            norm_windows = self.robust_normalization(norm_X[:,d,:], minv=minl[d], maxv=maxl[d])
+            norm_X[:,d, :] = norm_windows
+        return norm_X.transpose([0, 2, 1])
+    
+    def robustScaler(self, returnValues=False):
+        self.magnitudes = mts_shape_norm(self.X)
+        
+        
+        # scaler
+        
+        # if (){
+        # }
+        
+        if returnValues:
+        #     if len(minl) == 0:
+            Xc = mts_norm(self.X)
+        #     else:
+        #         Xc, min_l, max_l = mts_norm(self.X, minl=minl, maxl=maxl)
+                
+            return Xc
+        # else:
+        #     if len(minl) == 0:
+        #         self.X_norm, min_l, max_l = mts_norm(self.X)
+        else:
+            self.X_norm = mts_norm(self.X)
+        #         self.X_norm, min_l, max_l = mts_norm(self.X, minl=minl, maxl=maxl)
+            
+            return None
+        
     
     def minMaxNormalizization(self, minl=[], maxl=[], returnValues = False):
         _, _, self.magnitudes = mts_shape_norm(self.X)

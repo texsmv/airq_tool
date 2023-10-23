@@ -17,15 +17,56 @@ def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing
         return windows_map
     
     initial_year = 1990
-    final_year = 2021
+    final_year = 2023
     # initial_year = 2009
     # final_year = 2019
-    
+    year_formats = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+    ]
+    print('[HONG KONG] - Reading ...')
     dframes = []
+    index = 0
     for year in range(initial_year, final_year + 1):
         file_name = '{}_EN.xlsx'.format(year)
         df = pd.read_excel(DB_PATH + file_name, skiprows=11)
+        
+        df['HOUR'] = df['HOUR'].apply(lambda x: '{0:0>2}'.format(x - 1))
+        df['datetime'] = pd.to_datetime(df['DATE'].astype(str) + ' ' +  df['HOUR'].astype(str) + ':00:00', format=year_formats[index])
         dframes.append(df)
+        index = index + 1
     
     all_df = pd.concat(dframes)
     all_df = all_df.replace('N.A.', np.NaN)
@@ -34,8 +75,17 @@ def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing
     all_df['STATION'] = all_df['STATION'].str.strip()
     stations = all_df['STATION'].unique()
     
-    all_df['HOUR'] = all_df['HOUR'].apply(lambda x: '{0:0>2}'.format(x - 1))
-    all_df['datetime'] = pd.to_datetime(all_df['DATE'].astype(str) + ' ' +  all_df['HOUR'].astype(str) + ':00:00')
+    
+    
+    # all_df = pd.concat(dframes)
+    # all_df = all_df.replace('N.A.', np.NaN)
+    
+    # all_df['STATION'] = all_df['STATION'].str.upper()
+    # all_df['STATION'] = all_df['STATION'].str.strip()
+    # stations = all_df['STATION'].unique()
+    
+    # all_df['HOUR'] = all_df['HOUR'].apply(lambda x: '{0:0>2}'.format(x - 1))
+    # all_df['datetime'] = pd.to_datetime(all_df['DATE'].astype(str) + ' ' +  all_df['HOUR'].astype(str) + ':00:00', format="%Y/%m/%d: ")
     
     
     windows_map = {}
@@ -65,11 +115,12 @@ def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing
             for k in range(len(values)):
                 # dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
                 dKey = str(dates[k])
+                # * Convert to uniform ranges
                 if pol == 'CO':
-                    values[k] = values[k] / 10.0
+                    values[k] = (values[k] * 10.0) * 0.001
                 station_map[dKey] = (values[k], dates[k])
             windows_map[pol][station] = station_map
-    
+    print('[HONG KONG] - Reading done')
     
     np.save(DB_CACHE_PATH, windows_map)
     return windows_map

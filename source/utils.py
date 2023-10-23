@@ -9,6 +9,139 @@ import skfda
 from skfda.representation.interpolation import SplineInterpolation
 from skfda.exploratory.depth.multivariate import SimplicialDepth
 import skfda.representation.basis as basis
+import aqi
+
+AVAILABLE_POLUTANTS = [
+    'O3', 'PM25', 'PM10', 'FSP', 'NO2', 'SO2', 'CO',
+    'MP25', 'MP10',
+    'FSP', 'RSP'
+]
+
+CO_MOLECULAR_WEIGHT = 28.01
+NO2_MOLECULAR_WEIGHT = 46.01
+O3_MOLECULAR_WEIGHT = 48.00
+SO2_MOLECULAR_WEIGHT = 64.06
+
+def ppb_to_ug_per_m3(ppb, molecular_weight):
+    """
+    Convert parts per billion (ppb) to micrograms per cubic meter (µg/m³).
+    
+    Args:
+    ppb (float): Concentration in parts per billion.
+    molecular_weight (float): Molecular weight of the substance in g/mol.
+    
+    Returns:
+    float: Concentration in µg/m³.
+    """
+    constant = 24.45
+    micrograms_per_cubic_meter = (ppb * molecular_weight) / constant
+    return micrograms_per_cubic_meter
+
+def ppm_to_mg_per_m3(ppm, molecular_weight):
+    """
+    Convert parts per million (ppm) to milligrams per cubic meter (mg/m³).
+    
+    Args:
+    ppm (float): Concentration in parts per million.
+    molecular_weight (float): Molecular weight of the substance in g/mol.
+    
+    Returns:
+    float: Concentration in mg/m³.
+    """
+    constant = 24.45
+    mg_per_m3 = (ppm * molecular_weight) / constant
+    return mg_per_m3
+
+def daily_iaqi(pollutant, data):
+    if pollutant == 'O3':
+        
+        d_mean = data.mean()
+        return aqi.to_iaqi('o3_8h', str(d_mean), algo=aqi.ALGO_MEP)
+    elif pollutant == 'PM25' or pollutant == 'FSP' or pollutant == 'MP25':
+        d_mean = data.mean()
+        return aqi.to_iaqi(aqi.POLLUTANT_PM25, str(d_mean), algo=aqi.ALGO_MEP)
+    elif pollutant == 'PM10' or pollutant == 'RSP' or pollutant == 'MP10':
+        d_mean = data.mean()
+        return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_MEP)
+    elif pollutant == 'NO2':
+        d_mean = data.mean()
+        return aqi.to_iaqi('no2_24h', str(d_mean), algo=aqi.ALGO_MEP)
+    elif pollutant == 'SO2':
+        d_mean = data.mean()
+        return aqi.to_iaqi('so2_24h', str(d_mean), algo=aqi.ALGO_MEP)
+    elif pollutant == 'CO':
+        d_mean = data.mean()
+        return aqi.to_iaqi('co_24h', str(d_mean), algo=aqi.ALGO_MEP)
+
+def format_date(date, gran):
+    if gran == 'daily':
+        return '{}_{}_{}'.format( date.year, date.month, date.day)
+    elif gran == 'monthly':
+        return '{}_{}'.format( date.year, date.month)
+    elif gran == 'annualy':
+        return '{}'.format(date.year)
+
+def get_annualy_iaqis_map(daily_iaqi):
+    iaqi = {}
+    for polK, polD in daily_iaqi.items():
+        if  polK not in AVAILABLE_POLUTANTS:
+            continue
+        iaqi[polK] = {}
+        for statK, statD in polD.items():
+            iaqi[polK][statK] = {}
+            for yearK, yearD in statD.items():
+                values = []
+                for monthK, monthD in yearD.items():
+                    values = values + list(monthD.values())
+                    
+                values = np.array(values)
+                iaqi[polK][statK][yearK] = np.mean(values)
+                
+    return iaqi
+
+def get_monthly_iaqis_map(daily_iaqi):
+    monthly_iaqi = {}
+    for polK, polD in daily_iaqi.items():
+        if  polK not in AVAILABLE_POLUTANTS:
+            continue
+        monthly_iaqi[polK] = {}
+        for statK, statD in polD.items():
+            monthly_iaqi[polK][statK] = {}
+            for yearK, yearD in statD.items():
+                monthly_iaqi[polK][statK][yearK] = {}
+                for monthK, monthD in yearD.items():
+                    # print(np.array(list(monthD.values())))
+                    values = np.array(list(monthD.values()))
+                    monthly_iaqi[polK][statK][yearK][monthK] = np.mean(values)
+                
+    return monthly_iaqi
+
+def get_daily_iaqis_map(win_map):
+    windows_aqis = {}
+    for polK, polD in win_map.items():
+        if  polK not in AVAILABLE_POLUTANTS:
+            continue
+        windows_aqis[polK] = {}
+        for statK, statD in polD.items():
+            windows_aqis[polK][statK] = {}
+            for dateK, dateD in statD.items():
+                date = dateD[1]
+                data = dateD[0]
+                if dateD[0].shape[0] != 24:
+                    print('Error, not 24 days')
+                else:
+                    try:
+                        if date.year not in windows_aqis[polK][statK]:
+                            windows_aqis[polK][statK][date.year] = {}
+                            
+                        if date.month not in windows_aqis[polK][statK][date.year]:
+                            windows_aqis[polK][statK][date.year][date.month] = {}
+
+                        windows_aqis[polK][statK][date.year][date.month][date.day] = int(daily_iaqi(polK, data))
+                    except:
+                        print('Exception while getting daily_iaqi')
+    return windows_aqis
+
 
 
 class ValueLogger(object):
@@ -193,52 +326,71 @@ def getAllStations(windows_map, pollutants):
     stations = np.unique(np.array(stations))
     return stations
 
+
+def getCommonDates(windows_map, station, pollutants):
+    common_dates = []
+    first = True
+    
+    for pol in pollutants:
+        stationDates = list(windows_map[pol][station].keys())
+        
+        if len(common_dates) == 0 and first:
+            common_dates = stationDates
+            first = False
+            
+        else:
+            common_dates = intersection(common_dates, stationDates)
+    return common_dates
+
 def commonWindows(windows_map,  pollutants, inStations):
     # ---------------------------------Get list of filtered stations---------------------------
+    # Counting the number of times it was added to stations
     stations = []
     for pol in pollutants:
         stations = stations + list(windows_map[pol].keys()) 
-    stations = np.unique(np.array(stations))
-    # stations = np.array(stations)
+    
+    uniques_stations, station_counts = np.unique(stations, return_counts=True)
+    stations = uniques_stations[station_counts == len(pollutants)]
+    
+    stations = np.unique(np.array(stations)).tolist()
+    print('')
+    print('Stations that have all pollutants: {}  -  {}'.format(len(stations), stations))
+    
+    
+    # def intersection(lst1, lst2):
+    #     lst3 = [value for value in lst1 if value in lst2]
+    #     return lst3
+    
+    # Stations that do have the pollutants
+    
+    possible_stations = intersection(stations, inStations)
+    present_stations = []
     
     all_windows = []
     all_dates = []
-    all_stations = []
+    all_stations_ids = []
     st = 0
-    for station in inStations:
-        # station = stations[st]
-        
-        # ---------------------- Check if the station has all the pollutants--------------------
-        skip = False
-        for pol in pollutants:
-            if station not in windows_map[pol]:
-                skip = True
-        if skip:
-            continue
-        
+    
+    for k in range(len(possible_stations)):
+        station = possible_stations[k]
+        print(station)
         # ------------------------- Get common dates of the station------------------------------
-        common_dates = []
-        is_first_time = True
-        for pol in pollutants:
-            stationDates = list(windows_map[pol][station].keys())
-            # print(stationDates)
-            if len(common_dates) == 0:
-                if is_first_time:
-                    common_dates = stationDates
-                    is_first_time = False
-                else:
-                    break
-            else:
-                common_dates = intersection(common_dates, stationDates)
+        common_dates = getCommonDates(windows_map, station, pollutants)
         if len(common_dates) == 0:
             continue
-                
+        else:
+            present_stations.append(station)
+        
+        print(common_dates)
         # ------------------------ Get the windows from the common dates-------------------------
         station_windows = []
         station_dates = []
         for pol in pollutants:
+            print(pol)
+            print(windows_map[pol][station].keys())
             dim_windows = np.array([windows_map[pol][station][dstr][0] for dstr in common_dates])
             dim_dates = np.array([windows_map[pol][station][dstr][1] for dstr in common_dates])
+            
             if len(station_windows) == 0:
                 station_windows = dim_windows
                 station_dates = dim_dates
@@ -246,21 +398,22 @@ def commonWindows(windows_map,  pollutants, inStations):
                 station_windows = np.concatenate([station_windows, dim_windows], axis=2)
         station_ids = np.ones(len(station_windows)) * st
         
+        
         # ------------------------------ Add windows to all windows-----------------------------
-        if len(station_windows) == 0:
-            continue
+        # if len(station_windows) == 0:
+            # continue
         
         if len(all_windows) == 0:
             all_windows = station_windows
             all_dates = station_dates
-            all_stations = station_ids
+            all_stations_ids = station_ids
         else:
             all_windows = np.concatenate([all_windows, station_windows],  axis = 0)
             all_dates = np.concatenate([all_dates, station_dates],  axis = 0)
-            all_stations = np.concatenate([all_stations, station_ids],  axis = 0)
+            all_stations_ids = np.concatenate([all_stations_ids, station_ids],  axis = 0)
         st = st + 1
     
-    return all_windows, all_dates, all_stations.astype(int), stations
+    return all_windows, all_dates, all_stations_ids.astype(int), np.array(present_stations)
 
 
 def rescale(val, in_min, in_max, out_min, out_max):
