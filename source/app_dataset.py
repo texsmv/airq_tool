@@ -168,7 +168,7 @@ class OntarioDataset:
 class BrasilDataset:
     all_pollutants = [
         'BEN', 'CO', 'DV', 'DVG', 'ERT', 
-        'MP10', 'MP25', 'NO', 'NOx', 
+        'MP10', 'MP25', 'NO', 'NO2', 'NOx', 
         'O3', 'PRESS', 'RADG', 'RADUV', 'SO2',
         'TEMP', 'TOL', 'UR']
     

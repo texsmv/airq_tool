@@ -364,6 +364,8 @@ def commonWindows(windows_map,  pollutants, inStations):
     # Stations that do have the pollutants
     
     possible_stations = intersection(stations, inStations)
+    print('Possible stations')
+    print(possible_stations)
     present_stations = []
     
     all_windows = []
@@ -375,6 +377,7 @@ def commonWindows(windows_map,  pollutants, inStations):
         station = possible_stations[k]
         print(station)
         # ------------------------- Get common dates of the station------------------------------
+        print(pollutants)
         common_dates = getCommonDates(windows_map, station, pollutants)
         if len(common_dates) == 0:
             continue

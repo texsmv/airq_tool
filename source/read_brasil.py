@@ -2,11 +2,11 @@ import os
 import numpy as np
 from datetime import datetime
 import pandas as pd
-from .utils import dfMonthWindows, dfYearWindows, dfDailyWindows
+from .utils import CO_MOLECULAR_WEIGHT, dfMonthWindows, dfYearWindows, dfDailyWindows, ppm_to_mg_per_m3
 
 DB_PATH = 'datasets/Brasil/'
 
-all_fileNames = ['BEN', 'CO', 'DV', 'DVG', 'ERT', 'MP10', 'MP25', 'NO', 'MP25', 'NOx', 'O3', 'PRESS', 'RADG', 'RADUV', 'SO2', 'TEMP', 'TOL', 'UR']
+all_fileNames = ['BEN', 'CO', 'DV', 'DVG', 'ERT', 'MP10', 'MP25', 'NO', 'NO2', 'NOx', 'O3', 'PRESS', 'RADG', 'RADUV', 'SO2', 'TEMP', 'TOL', 'UR']
 
 # Returns a Dict with levels pollutant-station-date
 # granularity can be years or months
@@ -53,6 +53,10 @@ def read_brasil(files=all_fileNames, granularity='years', cache=True, max_missin
             for k in range(len(values)):
                 # dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
                 dKey = str(dates[k])
+                pollutant = fname
+                if pollutant == 'CO':
+                    values[k] = ppm_to_mg_per_m3(values[k], CO_MOLECULAR_WEIGHT)
+                
                 station_map[dKey] = (values[k], dates[k])
             
             conc_map[station] = station_map
