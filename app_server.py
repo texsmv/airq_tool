@@ -16,16 +16,8 @@ from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
 from source.featlearn.autoencoder_lr import AutoencoderFL
-# , VAE_FL, DCEC
-# from source.featlearn.mec_framework import MEC_FL
-# from source.featlearn.byol import BYOL
-# from sklearn.metrics import pairwise_distances
-# from gpu_pairwise.geometric import pairwise_distance
-# from gpu_pairwise import pairwise_distances
-# from numbaDistanceMatrix.cudaDistanceMatrix import DistanceMatrix
-# from numbaDistanceMatrix.cudaDistanceMatrix import DistanceMatrix
+
 from dist_matrix.cuda_dist_matrix_full import dist_matrix as gpu_dist_matrix
-# from sklearn.model_selection import train_test_split
 import aqi
 from fast_pytorch_kmeans import KMeans
 import torch
