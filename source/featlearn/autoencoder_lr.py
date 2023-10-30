@@ -3,7 +3,9 @@ from torch import nn
 import numpy as np
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch_snippets import *
+# from torch_snippets import *
+import torch.optim as optim
+from torch.utils.data import Dataset
 from ..utils import ValueLogger
 import copy
 from sklearn.cluster import KMeans

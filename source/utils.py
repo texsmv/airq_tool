@@ -9,7 +9,7 @@ import skfda
 from skfda.representation.interpolation import SplineInterpolation
 from skfda.exploratory.depth.multivariate import SimplicialDepth
 import skfda.representation.basis as basis
-import aqi
+# import aqi
 
 AVAILABLE_POLUTANTS = [
     'O3', 'PM25', 'PM10', 'FSP', 'NO2', 'SO2', 'CO',

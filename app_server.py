@@ -6,33 +6,34 @@ import json
 import sys
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 
 from source.tserie import TSerie
 from sklearn.decomposition import PCA
-from cuml.neighbors import NearestNeighbors
-from cuml.manifold import UMAP
-from ccpca import CCPCA
+# from cuml.neighbors import NearestNeighbors
+# from cuml.manifold import UMAP
+# from ccpca import CCPCA
 from source.utils import AVAILABLE_POLUTANTS, folding_2D, magnitude_shape_plot
 from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
-from source.featlearn.autoencoder_lr import AutoencoderFL, VAE_FL, DCEC
-from source.featlearn.mec_framework import MEC_FL
-from source.featlearn.byol import BYOL
+from source.featlearn.autoencoder_lr import AutoencoderFL
+# , VAE_FL, DCEC
+# from source.featlearn.mec_framework import MEC_FL
+# from source.featlearn.byol import BYOL
 # from sklearn.metrics import pairwise_distances
 # from gpu_pairwise.geometric import pairwise_distance
 # from gpu_pairwise import pairwise_distances
 # from numbaDistanceMatrix.cudaDistanceMatrix import DistanceMatrix
 # from numbaDistanceMatrix.cudaDistanceMatrix import DistanceMatrix
 from dist_matrix.cuda_dist_matrix_full import dist_matrix as gpu_dist_matrix
-from sklearn.model_selection import train_test_split
+# from sklearn.model_selection import train_test_split
 import aqi
-from fast_pytorch_kmeans import KMeans
+# from fast_pytorch_kmeans import KMeans
 import torch
-from fastdist import fastdist
+# from fastdist import fastdist
 
 
 import datetime
@@ -55,8 +56,8 @@ MAX_WINDOWS = 40000
 UMAP_METRIC = 'braycurtis'
 BATCH_SIZE = 240
 
-plt.rcParams["figure.figsize"] = [7.50, 3.50]
-plt.rcParams["figure.autolayout"] = True
+# plt.rcParams["figure.figsize"] = [7.50, 3.50]
+# plt.rcParams["figure.autolayout"] = True
 
 
 
