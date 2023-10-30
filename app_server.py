@@ -6,14 +6,10 @@ import json
 import sys
 import numpy as np
 import pandas as pd
-# import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 
 from source.tserie import TSerie
 from sklearn.decomposition import PCA
-# from cuml.neighbors import NearestNeighbors
-# from cuml.manifold import UMAP
-# from ccpca import CCPCA
 from source.utils import AVAILABLE_POLUTANTS, folding_2D, magnitude_shape_plot
 from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
@@ -31,7 +27,7 @@ from source.featlearn.autoencoder_lr import AutoencoderFL
 from dist_matrix.cuda_dist_matrix_full import dist_matrix as gpu_dist_matrix
 # from sklearn.model_selection import train_test_split
 import aqi
-# from fast_pytorch_kmeans import KMeans
+from fast_pytorch_kmeans import KMeans
 import torch
 # from fastdist import fastdist
 
