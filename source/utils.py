@@ -416,7 +416,9 @@ def commonWindows(windows_map,  pollutants, inStations):
             all_stations_ids = np.concatenate([all_stations_ids, station_ids],  axis = 0)
         st = st + 1
     
-    return all_windows, all_dates, all_stations_ids.astype(int), np.array(present_stations)
+    if len(all_stations_ids) != 0:
+        all_stations_ids = all_stations_ids.astype(int)
+    return all_windows, all_dates, all_stations_ids, np.array(present_stations)
 
 
 def rescale(val, in_min, in_max, out_min, out_max):

@@ -664,10 +664,16 @@ def loadWindows():
         dataset = HongKongDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     
     print('Reading stations {}'.format(stations))
-    dataset.common_windows(pollutants, stations, max_windows=MAX_WINDOWS)
-    
     
     resp_map = {}   
+    
+    dataset.common_windows(pollutants, stations, max_windows=MAX_WINDOWS)
+    
+    if len(dataset.windows) == 0:
+        resp_map['STATUS'] = 'ERROR'
+        resp_map['message'] = 'No windows found'
+        return jsonify(resp_map)
+    
     
     
     resp_map['pollutants'] = dataset.window_pollutants
@@ -707,6 +713,7 @@ def loadWindows():
         'dates' : dataset.window_dates.tolist(),
         'stations': dataset.window_station_ids.tolist(),
     }
+    resp_map['STATUS'] = 'DONE'
     
     
     # if shapeNorm:
