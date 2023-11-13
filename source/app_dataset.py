@@ -7,7 +7,7 @@ from .utils import AVAILABLE_POLUTANTS, commonWindows, get_annualy_iaqis_map, ge
 class OntarioDataset:
     all_pollutants = ['NO', 'NOx', 'NO2', 'SO2', 'CO', 'O3', 'PM25']
     def __init__(self, granularity='years', cache=True, fill_missing=True, max_missing=0.1):
-        self.windows_map = read_ontario(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
+        self.windows_map, self.windows_original_map = read_ontario(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
         self.stations_map = read_ontario_stations()
         self.pollutants = list(self.windows_map.keys())
         self.name='ontario'
@@ -29,6 +29,25 @@ class OntarioDataset:
                 else:
                     n_pol_dict[real_name] = stat_dict
             n_map[pol_k] = n_pol_dict
+            
+        n_original_map = {}
+        for pol_k, pol_d in self.windows_original_map.items():
+            pol_dict = self.windows_original_map[pol_k]
+            n_pol_dict = {}
+            for sta_k, sta_d in pol_dict.items():
+                real_name = self.stations_map[str(sta_k)]['name']
+                stat_dict = pol_dict[sta_k]
+                
+                if real_name in n_pol_dict:
+                    real_dict = n_pol_dict[real_name]
+                    for win_k, win_d in stat_dict.items():
+                        real_dict[win_k] = win_d
+                else:
+                    n_pol_dict[real_name] = stat_dict
+            n_original_map[pol_k] = n_pol_dict
+        
+        self.windows_original_map = n_map
+        
         self.windows_map = n_map
         
         n_stations_map = {}
@@ -36,11 +55,6 @@ class OntarioDataset:
             n_stations_map[sta_v['name']] = sta_v
         self.stations_map = n_stations_map
         
-        # Get stations and dates ranges
-        # all_stations = []
-        # for pol in self.pollutants:
-        #     all_stations = all_stations + list(self.windows_map[pol].keys())
-        # all_stations = np.unique(np.array(all_stations))
         all_stations = getAllStations(self.windows_map, self.all_pollutants).tolist()
         all_stations = [str(station) for station in all_stations]
         
@@ -62,8 +76,14 @@ class OntarioDataset:
 
     def common_windows(self, pollutants, stations, max_windows = 10000):
         print('IN STATIONS: {} - {}'.format(len(stations), stations))
+        # self.windows_prepro, _, _, _ = commonWindows(
+        #     self.windows_map, 
+        #     pollutants, 
+        #     stations
+        # )
+        
         self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(
-            self.windows_map, 
+            self.windows_original_map, 
             pollutants, 
             stations
         )
@@ -173,7 +193,7 @@ class BrasilDataset:
         'TEMP', 'TOL', 'UR']
     
     def __init__(self, granularity='years', cache=True, fill_missing=False, max_missing=0.1):
-        self.windows_map = read_brasil(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
+        self.windows_map, self.windows_original_map = read_brasil(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
         self.pollutants = list(self.windows_map.keys())
         self.granularity = granularity
         
@@ -500,7 +520,7 @@ class BrasilDataset:
         
 
     def common_windows(self, pollutants, stations, max_windows = 10000):
-        self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(self.windows_map, pollutants, stations)
+        self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(self.windows_original_map, pollutants, stations)
         
         N = len(self.windows) 
         if N > max_windows:
@@ -599,7 +619,7 @@ class HongKongDataset:
         'CO', 'FSP', 'NO2', 'NOX', 'O3', 'RSP', 'SO2']
     
     def __init__(self, granularity='years', cache=True, fill_missing=False, max_missing=0.1):
-        self.windows_map = read_hongkong(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
+        self.windows_map, self.windows_original_map = read_hongkong(granularity=granularity, cache=cache, fill_missing=fill_missing, max_missing=max_missing)
         self.pollutants = list(self.windows_map.keys())
         self.name='hongkong'
         self.granularity = granularity
@@ -721,7 +741,7 @@ class HongKongDataset:
     def common_windows(self, pollutants, stations, max_windows = 10000):
         
         self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(
-            self.windows_map, 
+            self.windows_original_map, 
             pollutants, 
             stations
         )

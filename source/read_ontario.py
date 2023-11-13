@@ -15,19 +15,25 @@ DB_PATH = 'datasets/ontario/'
 def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=True):
     if fill_missing:
         DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}_{}.npy'.format(granularity, max_missing))
+        DB_CACHE_ORIG_PATH = os.path.join(DB_PATH, 'data_orig_{}_{}.npy'.format(granularity, max_missing))
     else:
         DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}_{}.npy'.format(granularity, 0))
+        DB_CACHE_ORIG_PATH = os.path.join(DB_PATH, 'data_orig_{}_{}.npy'.format(granularity, 0))
     
     if cache and os.path.exists(DB_CACHE_PATH):
         windows_map = np.load(DB_CACHE_PATH, allow_pickle=True)
         windows_map = windows_map[()]
-        return windows_map
+        
+        windows_orig_map = np.load(DB_CACHE_ORIG_PATH, allow_pickle=True)
+        windows_orig_map = windows_orig_map[()]
+        return windows_map, windows_orig_map
         
     
     windows_map = {}
+    windows_original_map = {}
     for pollutant in pollutants:
-        print(pollutant)
         conc_map = {}
+        conc_original_map = {}
         aux_map = {}
         for i in range(len(years)):
             with open(os.path.join(DB_PATH, "{}-{}.csv".format(pollutant, years[i])), "r") as f:
@@ -99,6 +105,7 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
         stations = list(aux_map.keys())
         for station in stations:
             station_map = {}
+            station_original_map = {}
             values, pol_datetimes = aux_map[station][pollutant]
             df_conc = pd.DataFrame({'date': pol_datetimes, 'value': values})
             df_conc = df_conc.set_index('date')
@@ -111,6 +118,7 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
 
             for k in range(len(values)):
                 dKey = str(dates[k])
+                station_original_map[dKey] = (values[k], dates[k])
                 if pollutant == 'CO':
                     values[k] = ppm_to_mg_per_m3(values[k], CO_MOLECULAR_WEIGHT)
                 if pollutant == 'NO2':
@@ -123,10 +131,13 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
                 station_map[dKey] = (values[k], dates[k])
                 
             conc_map[station] = station_map
+            conc_original_map[station] = station_original_map
             
         windows_map[pollutant] = conc_map
+        windows_original_map[pollutant] = conc_original_map
     np.save(DB_CACHE_PATH, windows_map)
-    return windows_map
+    np.save(DB_CACHE_ORIG_PATH, windows_original_map)
+    return windows_map, windows_original_map
 
 
 def read_ontario_stations():

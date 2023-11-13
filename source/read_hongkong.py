@@ -9,12 +9,17 @@ DB_PATH = 'datasets/HongKong/'
 def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing=True):
     if fill_missing:
         DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}_{}.npy'.format(granularity, max_missing))
+        DB_CACHE_ORIG_PATH = os.path.join(DB_PATH, 'data_orig_{}_{}.npy'.format(granularity, max_missing))
     else:
         DB_CACHE_PATH = os.path.join(DB_PATH, 'data_{}_{}.npy'.format(granularity, 0))
+        DB_CACHE_ORIG_PATH = os.path.join(DB_PATH, 'data_orig_{}_{}.npy'.format(granularity, 0))
     if cache and os.path.exists(DB_CACHE_PATH):
         windows_map = np.load(DB_CACHE_PATH, allow_pickle=True)
         windows_map = windows_map[()]
-        return windows_map
+        
+        windows_orig_map = np.load(DB_CACHE_ORIG_PATH, allow_pickle=True)
+        windows_orig_map = windows_orig_map[()]
+        return windows_map, windows_orig_map
     
     initial_year = 1990
     final_year = 2023
@@ -89,6 +94,7 @@ def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing
     
     
     windows_map = {}
+    windows_original_map = {}
     # stations = ['TAP MUN']
     for station in stations:
         df = all_df[all_df['STATION'] == station]
@@ -100,8 +106,10 @@ def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing
         for pol in df.columns:
             if not pol in windows_map:
                 windows_map[pol] = {}
+                windows_original_map[pol] = {}
             
             station_map = {}
+            station_original_map = {}
             df_conc = pd.DataFrame({'date': df.index, 'value': df[pol]})
             df_conc = df_conc.set_index('date')
             
@@ -116,12 +124,16 @@ def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing
                 # dKey = '{}-{}-{}'.format(dates[k].year, dates[k].month, dates[k].day)
                 dKey = str(dates[k])
                 # * Convert to uniform ranges
+                station_original_map[dKey] = (values[k], dates[k])
+                
                 if pol == 'CO':
                     values[k] = (values[k] * 10.0) * 0.001
                 station_map[dKey] = (values[k], dates[k])
             windows_map[pol][station] = station_map
+            windows_original_map[pol][station] = station_original_map
     print('[HONG KONG] - Reading done')
     
     np.save(DB_CACHE_PATH, windows_map)
-    return windows_map
+    np.save(DB_CACHE_ORIG_PATH, windows_original_map)
+    return windows_map, station_original_map
         
