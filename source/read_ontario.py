@@ -118,7 +118,7 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
 
             for k in range(len(values)):
                 dKey = str(dates[k])
-                station_original_map[dKey] = (values[k], dates[k])
+                station_original_map[dKey] = (np.copy(values[k]), dates[k])
                 if pollutant == 'CO':
                     values[k] = ppm_to_mg_per_m3(values[k], CO_MOLECULAR_WEIGHT)
                 if pollutant == 'NO2':

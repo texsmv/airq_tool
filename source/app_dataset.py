@@ -29,6 +29,8 @@ class OntarioDataset:
                 else:
                     n_pol_dict[real_name] = stat_dict
             n_map[pol_k] = n_pol_dict
+        self.windows_map = n_map
+        
             
         n_original_map = {}
         for pol_k, pol_d in self.windows_original_map.items():
@@ -46,9 +48,8 @@ class OntarioDataset:
                     n_pol_dict[real_name] = stat_dict
             n_original_map[pol_k] = n_pol_dict
         
-        self.windows_original_map = n_map
+        self.windows_original_map = n_original_map
         
-        self.windows_map = n_map
         
         n_stations_map = {}
         for sta_k, sta_v in self.stations_map.items():
@@ -83,7 +84,7 @@ class OntarioDataset:
         # )
         
         self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(
-            self.windows_original_map, 
+            self.windows_original_map,
             pollutants, 
             stations
         )
