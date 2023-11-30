@@ -15,6 +15,7 @@ from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
+import pacmap
 from source.featlearn.autoencoder_lr import AutoencoderFL
 
 from dist_matrix.cuda_dist_matrix_full import dist_matrix as gpu_dist_matrix
@@ -42,7 +43,7 @@ MODE = 2 # 0 for umap, 1 for ts2vec, 2 for CAE
 USE_TS2VEC = True
 MAX_WINDOWS = 40000
 UMAP_METRIC = 'braycurtis'
-BATCH_SIZE = 240
+BATCH_SIZE = 800
 
 # plt.rcParams["figure.figsize"] = [7.50, 3.50]
 # plt.rcParams["figure.autolayout"] = True
@@ -84,63 +85,6 @@ def get_aqi(pollutants, values): # values shape NxD
             iaqis.append(('co_24h', str(d_mean)))
     return aqi.to_aqi(iaqis, algo=aqi.ALGO_MEP)
         
-
-class UMAP_FL:
-    def __init__(self, n_components, n_neighbors, metric = 'braycurtis', n_epochs = 1000):
-        self.reducer = UMAP(n_components=n_components, n_neighbors=n_neighbors, n_epochs=n_epochs)
-        self.nearNeigh = NearestNeighbors(n_neighbors=n_neighbors, metric=metric)
-
-    def fit_transform(self, X, y=None):
-        self.nearNeigh.fit(X)
-        knn_graph = self.nearNeigh.kneighbors_graph(X, mode="distance")
-        embeddings =  self.reducer.fit_transform(X, y=y, knn_graph=knn_graph.tocsr(), convert_dtype=True)
-        return embeddings
-    
-    def transform(self, X):
-        knn_graph = self.nearNeigh.kneighbors_graph(X, mode="distance")
-        embeddings =  self.reducer.transform(X, knn_graph=knn_graph.tocsr(), convert_dtype=True)
-        return embeddings
-
-class UMAP_CFL:
-    def __init__(self):
-        self.reducer = PCA(n_components=1)
-    def fit_transform(self, X, y=None):
-        N, T, D = X.shape
-        dim_compressed = np.zeros([N, T])
-        
-        # Compressing 
-        dim_data = []
-        for i in range(N):
-            for j in range(T):
-                dim_data.append(mts.X[i, j])
-        dim_data = np.array(dim_data)
-        dim_features = self.reducer.fit_transform(dim_data)
-        dim_features = np.reshape(dim_features, [N, T])
-        for i in range(N):
-            for j in range(T):
-                dim_compressed[i, j] = dim_features[i, j]
-        self.features = dim_compressed
-
-    def contrast(self, labels, clusters):
-        fcs_time = []
-        for target in clusters:
-            ccpca = CCPCA(n_components=1)
-            
-            Xf = self.features[labels==target]
-            Xb = self.features[labels!=target]
-            
-            ccpca.fit(
-                Xf,
-                Xb,
-                var_thres_ratio=0.5,
-                n_alphas=40,
-                max_log_alpha=0.5,
-            )
-            _ = ccpca.transform(Xf)
-            best_alpha = ccpca.get_best_alpha()
-            cpca_fcs = ccpca.get_feat_contribs()
-            fcs_time.append(cpca_fcs)        
-        return fcs_time
 
 
 dataset = None
@@ -386,9 +330,12 @@ def getProjection():
     
     # feature_DM = fastdist.matrix_to_matrix_distance(mts.features, mts.features, fastdist.cosine, "cosine")
     # print(feature_DM.shape) 
+    # reducer = umap.UMAP(n_components=2)
     reducer = umap.UMAP(n_components=2, metric='precomputed', n_neighbors=10)
+    # reducer = pacmap.PaCMAP(n_components=2)
     
     coords = reducer.fit_transform(feature_DM)
+    # coords = reducer.fit_transform(mts.features)
     g_coords = coords
     reducer = None
     
@@ -408,14 +355,13 @@ def getCustomProjection():
     global latlong
     global g_coords
     
-    pollutantPosition = request.form['pollutantPosition']
-    pollutantPosition = int(pollutantPosition)
+    # pollutantPosition = request.form['pollutantPosition']
+    # pollutantPosition = int(pollutantPosition)
     filtered = np.array(json.loads(request.form['itemsPositions']))
     itemPositions = np.argwhere(filtered == True).squeeze()
-    N_NEIGHBORS = int(request.form['neighbors'])
-    delta = float(request.form['delta'])
+    n_neightbors = int(request.form['neighbors'])
+    # delta = float(request.form['delta'])
     beta = float(request.form['beta'])
-    n_neightbors = int(float(request.form['beta']))
 
 
     feature_DM = gpu_dist_matrix(mts.features[itemPositions])
@@ -428,11 +374,13 @@ def getCustomProjection():
     # time_DM = time_DM / np.max(time_DM)
     
     
-    distM = feature_DM * (1 - delta) + space_DM * delta
+    distM = feature_DM * (1 - beta) + space_DM * beta
     # distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
     
     reducer = umap.UMAP(n_components=2, metric='precomputed',n_neighbors=n_neightbors)
+    # reducer = pacmap.PaCMAP(n_components=2)
     coords = reducer.fit_transform(distM)
+    # coords = reducer.fit_transform(mts.features[itemPositions])
     
     g_coords[itemPositions] = coords
     reducer = None
@@ -440,8 +388,7 @@ def getCustomProjection():
 
     
     # Outliers
-    ts = mts.X[itemPositions, :, pollutantPosition]
-    
+    ts = mts.X[itemPositions, :, 0]
     
     cmean, cvar, outliers = magnitude_shape_plot(ts)
     

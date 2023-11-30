@@ -54,9 +54,11 @@ def ppm_to_mg_per_m3(ppm, molecular_weight):
 
 def daily_iaqi(pollutant, data):
     if pollutant == 'O3':
-        
-        d_mean = data.mean()
-        return aqi.to_iaqi('o3_8h', str(d_mean), algo=aqi.ALGO_MEP)
+        N = 24
+        subarrays = np.array([data[i:i + 8] for i in range(N - 8 + 1)])
+        averages = [np.mean(e) for e in subarrays]
+        max_val = max(averages)
+        return aqi.to_iaqi('o3_8h', str(max_val), algo=aqi.ALGO_MEP)
     elif pollutant == 'PM25' or pollutant == 'FSP' or pollutant == 'MP25':
         d_mean = data.mean()
         return aqi.to_iaqi(aqi.POLLUTANT_PM25, str(d_mean), algo=aqi.ALGO_MEP)
