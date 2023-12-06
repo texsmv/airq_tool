@@ -289,7 +289,7 @@ def getProjection():
         FEATURE_SIZE_CAE = 8
         N_NEIGHBORS = 15
     # _, _ = mts.minMaxNormalizization(returnValues=False)
-    mts.robustScaler(returnValues=False)
+    # mts.robustScaler(returnValues=False)
     
     if MODE == 0:    
         X_filtered = mts.X[:, :, pollPositions]
@@ -313,6 +313,7 @@ def getProjection():
         mts.features = model.encode(mts.X, encoding_window='full_series', batch_size=BATCH_SIZE)
     else:
         cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
+        
         cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=200)
         _, mts.features = cae.encode(mts.X)
         
@@ -501,7 +502,12 @@ def kmeans():
     # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(mts.features)
     # feat = torch.from_numpy(mts.features).to('cuda')
     
-    feat = torch.from_numpy(g_coords).to('cuda')
+    itemPositions = np.array(json.loads(request.form['itemsPositions']))
+    # itemPositions = np.argwhere(filtered == True).squeeze()
+    
+    feat = torch.from_numpy(g_coords[itemPositions]).to('cuda')
+    
+    
     kmeans = KMeans(n_clusters, max_iter = 300, mode='euclidean')
     labels = kmeans.fit_predict(feat)
     classes = labels.cpu().numpy()
@@ -532,11 +538,13 @@ def dbscan():
     global mts
     global g_coords
 
+    itemPositions = np.array(json.loads(request.form['itemsPositions']))
+    
     eps = request.form['eps']
     eps = float(eps)
     
     clustering = DBSCAN(eps=eps, min_samples=5)
-    clustering.fit(g_coords)
+    clustering.fit(g_coords[itemPositions])
     classes = clustering.labels_
     n_classes = len(np.unique(classes))
     
@@ -645,6 +653,16 @@ def loadWindows():
     
     mts.to_basis(n_basis=n_basis)
     mts.smooth(window_size=smoothWindow)
+    mts.robustScaler(returnValues=False)
+    
+    data={
+        'X':mts.X,
+        'dates': dataset.window_dates.tolist(),
+        'stations_ids': dataset.window_station_ids.tolist(),
+        'station_map':dataset.stations_map,
+        'stations': dataset.stations,
+    }
+    np.save( 'preprocessed_data', data)
     
     resp_map['windows_labels'] = {
         'dates' : dataset.window_dates.tolist(),
