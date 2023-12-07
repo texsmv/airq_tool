@@ -101,7 +101,7 @@ CORS(app)
 @app.route("/datasets", methods=['POST'])
 def datasetsInfo():
     global dataset
-    ontarioDataset = OntarioDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='years')
+    ontarioDataset = OntarioDataset(fill_missing=False, max_missing=MAX_MISSING, granularity='years')
     brasilDataset = BrasilDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='years')
     hongkongDataset = HongKongDataset(fill_missing=FILL_MISSING, max_missing=MAX_MISSING, granularity='years')
     
@@ -614,7 +614,7 @@ def loadWindows():
     if datasetName=='brasil':
         dataset = BrasilDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     elif datasetName =='ontario':
-        dataset = OntarioDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
+        dataset = OntarioDataset(granularity=granularity, fill_missing=False, max_missing=MAX_MISSING)
     if datasetName =='hongkong':
         dataset = HongKongDataset(granularity=granularity, fill_missing=FILL_MISSING, max_missing=MAX_MISSING)
     
