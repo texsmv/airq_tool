@@ -209,12 +209,12 @@ def fill_nan(A):
     '''
     inds = np.arange(A.shape[0])
     good = np.where(np.isfinite(A))
-    # TODO fix
-    # f = interpolate.interp1d(inds[good], A[good], kind='cubic', bounds_error=False)
-    # B = np.where(np.isfinite(A),A,f(inds))
-    f = np.zeros(A.shape)
-    B = np.where(np.isfinite(A),A,f)
-    B[B < 0] = 0
+    
+    f = interpolate.interp1d(inds[good], A[good], kind='linear', bounds_error=False)
+    B = np.where(np.isfinite(A),A,f(inds))
+    # f = np.zeros(A.shape)
+    # B = np.where(np.isfinite(A),A,f)
+    # B[B < 0] = 0
     return B
 
 def tryFillMissing(window, maxMissing = 0.2):
