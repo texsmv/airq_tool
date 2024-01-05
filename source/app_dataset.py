@@ -111,11 +111,11 @@ class OntarioDataset:
         print('')
         for stationId in np.unique(self.window_station_ids):
             station = self.window_stations[stationId]
-            print('STATION: {}'.format(station))
+            # print('STATION: {}'.format(station))
             
             stationDates = self.window_dates[self.window_station_ids == stationId]
             
-            print(np.unique(stationDates))
+            # print(np.unique(stationDates))
         print('')
         print('-----------------------------------------------------')
         
@@ -148,6 +148,7 @@ class OntarioDataset:
                 except:
                     iaqi = -1
                     wrong_ids.append(i)
+                    print('EXCEPT')
                     print('---------------------------------------------------')
                     print('Station: {} Data: {}'.format(station, date))
                     print(self.iaqis_map[poll].keys())

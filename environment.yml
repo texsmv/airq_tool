@@ -1,4 +1,4 @@
-name: airqTest2
+name: airq
 channels:
   - pytorch
   - anaconda
@@ -12,12 +12,12 @@ dependencies:
   - bottleneck=1.3.5=py310ha9d4c09_0
   - brotli-python=1.0.9=py310h6a678d5_7
   - bzip2=1.0.8=h7b6447c_0
-  - ca-certificates=2023.7.22=hbcca054_0
-  - certifi=2023.7.22=pyhd8ed1ab_0
+  - ca-certificates
+  - certifi
   - cffi=1.15.1=py310h5eee18b_3
   - charset-normalizer=2.0.4=pyhd3eb1b0_0
   - click=8.1.7=py310h06a4308_0
-  - colorama=0.4.6=pyhd8ed1ab_0
+  - colorama
   - cryptography=41.0.3=py310hdda0065_0
   - cuda-cudart=11.8.89=0
   - cuda-cupti=11.8.87=0
@@ -26,7 +26,7 @@ dependencies:
   - cuda-nvtx=11.8.86=0
   - cuda-runtime=11.8.0=0
   - cudatoolkit=11.8.0=h6a678d5_0
-  - ffmpeg=4.2.2=h20bf706_0
+  - ffmpeg
   - filelock=3.9.0=py310h06a4308_0
   - flask=2.2.2=py310h06a4308_0
   - flask-cors=3.0.10=pyhd3eb1b0_0
@@ -95,7 +95,7 @@ dependencies:
   - pillow=10.0.1=py310ha6cbd5a_0
   - pip=23.3=py310h06a4308_0
   - pycparser=2.21=pyhd3eb1b0_0
-  - pynndescent=0.5.10=pyh1a96a4e_0
+  - pynndescent
   - pyopenssl=23.2.0=py310h06a4308_0
   - pysocks=1.7.1=py310h06a4308_0
   - python=3.10.13=h955ad1f_0
@@ -121,10 +121,10 @@ dependencies:
   - torchaudio=2.1.0=py310_cu118
   - torchtriton=2.1.0=py310
   - torchvision=0.16.0=py310_cu118
-  - tqdm=4.66.1=pyhd8ed1ab_0
+  - tqdm
   - typing_extensions=4.7.1=py310h06a4308_0
   - tzdata=2023c=h04d1e81_0
-  - umap-learn=0.5.4=py310hff52083_0
+  - umap-learn
   - urllib3=1.26.18=py310h06a4308_0
   - werkzeug=2.2.3=py310h06a4308_0
   - wheel=0.41.2=py310h06a4308_0

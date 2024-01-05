@@ -15,7 +15,7 @@ from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
 import umap
-import pacmap
+# import pacmap
 from source.featlearn.autoencoder_lr import AutoencoderFL
 
 from dist_matrix.cuda_dist_matrix_full import dist_matrix as gpu_dist_matrix
@@ -164,7 +164,6 @@ def correlation():
     
     resp_map = {}
     resp_map['correlation_matrix'] = corr_matrix.flatten().tolist()
-    print(corr_matrix)
     # resp_map['coords'] = allCoords.flatten().tolist()
     
     
@@ -279,7 +278,7 @@ def getProjection():
     elif granularity == 'years':
         EPOCHS = 100
         # EPOCHS_CAE = 2000
-        EPOCHS_CAE = 300
+        EPOCHS_CAE = 800
         FEATURE_SIZE_CAE = 30
         N_NEIGHBORS = 15
     elif granularity == 'daily':
@@ -314,7 +313,7 @@ def getProjection():
     else:
         cae = AutoencoderFL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
         
-        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=200)
+        cae.fit(mts.X, epochs=EPOCHS_CAE, batch_size=800)
         _, mts.features = cae.encode(mts.X)
         
         # cae = MEC_FL(mts.D, mts.T, feature_size=FEATURE_SIZE_CAE)
