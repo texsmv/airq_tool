@@ -276,7 +276,7 @@ def getProjection():
         FEATURE_SIZE_CAE = 10
         N_NEIGHBORS = 15
     elif granularity == 'years':
-        EPOCHS = 100
+        EPOCHS = 1000
         # EPOCHS_CAE = 2000
         EPOCHS_CAE = 800
         FEATURE_SIZE_CAE = 30
@@ -359,6 +359,10 @@ def getCustomProjection():
     # pollutantPosition = int(pollutantPosition)
     filtered = np.array(json.loads(request.form['itemsPositions']))
     itemPositions = np.argwhere(filtered == True).squeeze()
+    
+    print(filtered)
+    print(itemPositions)
+    print('Item positions shape: {}'.format(itemPositions.shape))
     n_neightbors = int(request.form['neighbors'])
     # delta = float(request.form['delta'])
     beta = float(request.form['beta'])
@@ -393,8 +397,8 @@ def getCustomProjection():
     cmean, cvar, outliers = magnitude_shape_plot(ts)
     
     mmean = cvar.mean()
-    lower_o = np.bitwise_and(outliers == 1, cvar < mmean)
-    upper_o = np.bitwise_and(outliers == 1, cvar > mmean)
+    lower_o = np.logical_and(outliers == 1, cvar < mmean)
+    upper_o = np.logical_and(outliers == 1, cvar > mmean)
     
     n_outliers = np.zeros(outliers.shape[0]).astype(int)
     n_outliers[lower_o] = 1
@@ -404,51 +408,15 @@ def getCustomProjection():
     
     resp_map = {}
     resp_map['coords'] = coords.flatten().tolist()
-    resp_map['cmean'] = cmean.tolist()
-    resp_map['cvar'] = cvar.tolist()
-    resp_map['outliers'] = n_outliers.tolist()
+    # resp_map['cmean'] = cmean.tolist()
+    # resp_map['cvar'] = cvar.tolist()
+    # resp_map['outliers'] = n_outliers.tolist()
     
-    print(resp_map['outliers'])
-    
-    return jsonify(resp_map)
-
-
-
-
-
-@app.route("/spatioTemporalProjection", methods=['POST'])
-def spatioTemporalProjection():
-    global dataset
-    global granularity
-    global mts
-    global g_coords
-    
-    
-    # EPOCHS = 5
-    N_NEIGHBORS = int(request.form['neighbors'])
-    
-    delta = float(request.form['delta'])
-    beta = float(request.form['beta'])
-        
-    
-    feature_DM = pairwise_distances(mts.features, metric='cosine')
-    feature_DM = feature_DM / np.max(feature_DM)
-    
-    distM = feature_DM * (1 - (delta + beta)) + space_DM * delta + time_DM * beta
-    reducer = umap.UMAP(n_components=2, metric='precomputed', n_neighbors=N_NEIGHBORS)
-    
-    # reducer = umap.UMAP(n_components=2, metric='euclidean')
-    # reducer = umap.UMAP(n_components=2, metric='cosine')
-    #  reducer.transform(mts.features)
-    coords = reducer.fit_transform(distM)
-    # g_coords = coords
-    reducer = None
-    
-    
-    resp_map = {}
-    resp_map['coords'] = coords.flatten().tolist()
+    # print(resp_map['outliers'])
     
     return jsonify(resp_map)
+
+
 
 
 
@@ -461,7 +429,17 @@ def getFdaOutliers():
     pollutantPosition = request.form['pollutantPosition']
     pollutantPosition = int(pollutantPosition)
     
-    ts = mts.X[:, :, pollutantPosition]
+    filtered = np.array(json.loads(request.form['itemsPositions']))
+    
+    print(filtered)
+    
+    print('filtered shape: {}'.format(filtered.shape))
+    itemPositions = np.argwhere(filtered == True).squeeze()
+    print(itemPositions)
+    
+    print('Item positions shape: {}'.format(itemPositions.shape))
+    
+    ts = mts.X[itemPositions, :, pollutantPosition]
     # print(ts.shape)
     
     # cmean, cvar = fdaOutlier(ts)
@@ -471,8 +449,8 @@ def getFdaOutliers():
 
     
     
-    lower_o = np.bitwise_and(outliers == 1, cvar < mmean)
-    upper_o = np.bitwise_and(outliers == 1, cvar > mmean)
+    lower_o = np.logical_and(outliers == 1, cvar < mmean)
+    upper_o = np.logical_and(outliers == 1, cvar > mmean)
     
     
     n_outliers = np.zeros(outliers.shape[0]).astype(int)
