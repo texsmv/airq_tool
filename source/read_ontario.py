@@ -5,7 +5,7 @@ import io
 from datetime import datetime, timedelta
 
 
-from .utils import CO_MOLECULAR_WEIGHT, NO2_MOLECULAR_WEIGHT, O3_MOLECULAR_WEIGHT, SO2_MOLECULAR_WEIGHT, dfMonthWindows, dfDailyWindows, dfYearWindows, ppb_to_ug_per_m3, ppm_to_mg_per_m3, tryFillMissing
+from .utils import CO_MOLECULAR_WEIGHT, NO2_MOLECULAR_WEIGHT, O3_MOLECULAR_WEIGHT, SO2_MOLECULAR_WEIGHT, dfMonthWindows, dfDailyWindows, dfYearWindows, ppb_to_ug_per_m3, ppm_to_ug_per_m3, tryFillMissing
 years = ['2000', '2001', '2002', '2003', '2004', '2005', '2006', '2007', '2008', '2009', '2010', '2011', '2012', '2013', '2014', '2015','2016', '2017', '2018', '2019', '2020']
 # years = ['2013']
 pollutants = ['NO', 'NOx', 'NO2', 'SO2', 'CO', 'O3', 'PM25']
@@ -70,12 +70,12 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
                                         dates.append(date + timedelta(days=1))
                                     else:
                                         dates.append(date)
-                                elif k == 0:
-                                    dateStr = '{}T{}:00:00.000000000'.format(row['Date'], hoursD[k])
-                                    date = np.datetime64(dateStr)
-                                    # date = pd.to_datetime(dateStr, infer_datetime_format=True)
-                                    dates.append(date)
-                                    break
+                                else:
+                                    if k == 0:
+                                        dateStr = '{}T{}:00:00.000000000'.format(row['Date'], hoursD[k])
+                                        date = np.datetime64(dateStr)
+                                        # date = pd.to_datetime(dateStr, infer_datetime_format=True)
+                                        dates.append(date)
                     values[values==9999]=np.nan
                     values[values==-999]=np.nan
                     
@@ -120,7 +120,7 @@ def read_ontario(granularity='years', cache=True, max_missing=0.1, fill_missing=
                 dKey = str(dates[k])
                 station_original_map[dKey] = (np.copy(values[k]), dates[k])
                 if pollutant == 'CO':
-                    values[k] = ppm_to_mg_per_m3(values[k], CO_MOLECULAR_WEIGHT)
+                    values[k] = ppm_to_ug_per_m3(values[k], CO_MOLECULAR_WEIGHT)
                 if pollutant == 'NO2':
                     values[k] = ppb_to_ug_per_m3(values[k], NO2_MOLECULAR_WEIGHT)
                 if pollutant == 'O3':

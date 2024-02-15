@@ -127,7 +127,7 @@ def read_hongkong(granularity='years', cache=True, max_missing=0.1, fill_missing
                 station_original_map[dKey] = (values[k], dates[k])
                 
                 if pol == 'CO':
-                    values[k] = (values[k] * 10.0) * 0.001
+                    values[k] = (values[k] * 10.0)
                 station_map[dKey] = (values[k], dates[k])
             windows_map[pol][station] = station_map
             windows_original_map[pol][station] = station_original_map

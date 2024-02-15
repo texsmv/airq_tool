@@ -2,7 +2,7 @@ import os
 import numpy as np
 from datetime import datetime
 import pandas as pd
-from .utils import CO_MOLECULAR_WEIGHT, dfMonthWindows, dfYearWindows, dfDailyWindows, ppm_to_mg_per_m3
+from .utils import CO_MOLECULAR_WEIGHT, dfMonthWindows, dfYearWindows, dfDailyWindows, ppm_to_ug_per_m3
 
 DB_PATH = 'datasets/Brasil/'
 
@@ -64,7 +64,7 @@ def read_brasil(files=all_fileNames, granularity='years', cache=True, max_missin
                 pollutant = fname
                 station_original_map[dKey] = (values[k], dates[k])
                 if pollutant == 'CO':
-                    values[k] = ppm_to_mg_per_m3(values[k], CO_MOLECULAR_WEIGHT)
+                    values[k] = ppm_to_ug_per_m3(values[k], CO_MOLECULAR_WEIGHT)
                 
                 station_map[dKey] = (values[k], dates[k])
             

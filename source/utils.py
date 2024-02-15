@@ -22,6 +22,85 @@ NO2_MOLECULAR_WEIGHT = 46.01
 O3_MOLECULAR_WEIGHT = 48.00
 SO2_MOLECULAR_WEIGHT = 64.06
 
+
+
+from math import *
+POLLUTANS_CONCENTRATIONS_ug_m3 = {
+    'SO2': [
+        50,
+        150,
+        475,
+        800,
+        1600,
+        2620,
+    ],
+    'NO2': [
+        40,
+        80,
+        180,
+        280,
+        565,
+        940,
+    ],
+    'PM10': [
+        50,
+        150,
+        250,
+        350,
+        420,
+        600,
+    ],
+    'CO': [
+        2000,
+        4000,
+        14000,
+        24000,
+        36000,
+        60000,
+    ],
+    'O3': [
+        100,
+        160,
+        215,
+        265,
+        800,
+    ],
+    'PM25': [
+        35,
+        75,
+        115,
+        150,
+        250,
+        500,
+    ],
+}
+
+AQI_RANGES = [
+    [0, 50],
+    [50, 100],
+    [100, 150],
+    [150, 200],
+    [200, 300],
+    [300, 500]
+]
+
+
+def _to_aqi(c_i, c_l, c_h, AQI_l, AQI_h):
+    return (AQI_h - AQI_l) / (c_h - c_l) * (c_i - c_l) + AQI_l
+
+def get_nivel(ranges, val):
+    for i in range(len(ranges)):
+        if val < ranges[i]:
+            return i
+
+def get_iaqi(POL, c_i):
+    pol_ranges = POLLUTANS_CONCENTRATIONS_ug_m3[POL]
+    nivel = get_nivel(pol_ranges, c_i)
+    temp_range  = [0] + pol_ranges
+    c_l, c_h = temp_range[nivel], temp_range[nivel + 1]
+    AQI_l, AQI_h = AQI_RANGES[nivel]
+    return ceil(_to_aqi(c_i, c_l, c_h, AQI_l, AQI_h))
+
 def ppb_to_ug_per_m3(ppb, molecular_weight):
     """
     Convert parts per billion (ppb) to micrograms per cubic meter (µg/m³).
@@ -37,7 +116,7 @@ def ppb_to_ug_per_m3(ppb, molecular_weight):
     micrograms_per_cubic_meter = (ppb * molecular_weight) / constant
     return micrograms_per_cubic_meter
 
-def ppm_to_mg_per_m3(ppm, molecular_weight):
+def ppm_to_ug_per_m3(ppm, molecular_weight):
     """
     Convert parts per million (ppm) to milligrams per cubic meter (mg/m³).
     
@@ -48,9 +127,10 @@ def ppm_to_mg_per_m3(ppm, molecular_weight):
     Returns:
     float: Concentration in mg/m³.
     """
-    constant = 24.45
-    mg_per_m3 = (ppm * molecular_weight) / constant
-    return mg_per_m3
+    constant_ug = 24.45
+    ppb = ppm * 1000
+    ug_per_m3 = (ppb * molecular_weight ) / constant_ug
+    return ug_per_m3
 
 def daily_iaqi(pollutant, data):
     if pollutant == 'O3':
@@ -58,22 +138,28 @@ def daily_iaqi(pollutant, data):
         subarrays = np.array([data[i:i + 8] for i in range(N - 8 + 1)])
         averages = [np.mean(e) for e in subarrays]
         max_val = max(averages)
-        return aqi.to_iaqi('o3_8h', str(max_val), algo=aqi.ALGO_MEP)
+        # return aqi.to_iaqi('o3_8h', str(max_val), algo=aqi.ALGO_MEP)
+        return get_iaqi('O3', max_val)
     elif pollutant == 'PM25' or pollutant == 'FSP' or pollutant == 'MP25':
         d_mean = data.mean()
-        return aqi.to_iaqi(aqi.POLLUTANT_PM25, str(d_mean), algo=aqi.ALGO_MEP)
+        # return aqi.to_iaqi(aqi.POLLUTANT_PM25, str(d_mean), algo=aqi.ALGO_MEP)
+        return get_iaqi('PM25', d_mean)
     elif pollutant == 'PM10' or pollutant == 'RSP' or pollutant == 'MP10':
         d_mean = data.mean()
-        return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_MEP)
+        # return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_MEP)
+        return get_iaqi('PM10', d_mean)
     elif pollutant == 'NO2':
         d_mean = data.mean()
-        return aqi.to_iaqi('no2_24h', str(d_mean), algo=aqi.ALGO_MEP)
+        # return aqi.to_iaqi('no2_24h', str(d_mean), algo=aqi.ALGO_MEP)
+        return get_iaqi('NO2', d_mean)
     elif pollutant == 'SO2':
         d_mean = data.mean()
-        return aqi.to_iaqi('so2_24h', str(d_mean), algo=aqi.ALGO_MEP)
+        return get_iaqi('SO2', d_mean)
+        # return aqi.to_iaqi('so2_24h', str(d_mean), algo=aqi.ALGO_MEP)
     elif pollutant == 'CO':
         d_mean = data.mean()
-        return aqi.to_iaqi('co_24h', str(d_mean), algo=aqi.ALGO_MEP)
+        return get_iaqi('CO', d_mean)
+        # return aqi.to_iaqi('co_24h', str(d_mean), algo=aqi.ALGO_MEP)
 
 def format_date(date, gran):
     if gran == 'daily':

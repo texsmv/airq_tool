@@ -10,7 +10,7 @@ from sklearn.cluster import DBSCAN
 
 from source.tserie import TSerie
 from sklearn.decomposition import PCA
-from source.utils import AVAILABLE_POLUTANTS, folding_2D, magnitude_shape_plot
+from source.utils import AVAILABLE_POLUTANTS, daily_iaqi, folding_2D, magnitude_shape_plot
 from source.app_dataset import OntarioDataset, BrasilDataset, HongKongDataset
 from source.read_ontario import read_ontario_stations
 from source.utils import fdaOutlier
@@ -64,26 +64,27 @@ def get_aqi(pollutants, values): # values shape NxD
     for i in range(len(pollutants)):
         pollutant = pollutants[i]
         data = values[:, i]
-        if pollutant == 'O3':
-            d_mean = data.mean()
-            iaqis.append(('o3_8h', str(d_mean)))
-        elif pollutant == 'PM25' or pollutant == 'FSP' or pollutant == 'MP25':
-            d_mean = data.mean()
-            iaqis.append(('pm25', str(d_mean)))
-        elif pollutant == 'PM10' or pollutant == 'RSP' or pollutant == 'MP10':
-            d_mean = data.mean()
-            # return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_EPA)
-            iaqis.append(('pm10', str(d_mean)))
-        elif pollutant == 'NO2':
-            d_mean = data.mean()
-            iaqis.append(('no2_24h', str(d_mean)))
-        elif pollutant == 'SO2':
-            d_mean = data.mean()
-            iaqis.append(('so2_24h', str(d_mean)))
-        elif pollutant == 'CO':
-            d_mean = data.mean()
-            iaqis.append(('co_24h', str(d_mean)))
-    return aqi.to_aqi(iaqis, algo=aqi.ALGO_MEP)
+        iaqis.append(daily_iaqi(pollutant, data))
+        # if pollutant == 'O3':
+        #     d_mean = data.mean()
+        #     iaqis.append(('o3_8h', str(d_mean)))
+        # elif pollutant == 'PM25' or pollutant == 'FSP' or pollutant == 'MP25':
+        #     d_mean = data.mean()
+        #     iaqis.append(('pm25', str(d_mean)))
+        # elif pollutant == 'PM10' or pollutant == 'RSP' or pollutant == 'MP10':
+        #     d_mean = data.mean()
+        #     # return aqi.to_iaqi(aqi.POLLUTANT_PM10, str(d_mean), algo=aqi.ALGO_EPA)
+        #     iaqis.append(('pm10', str(d_mean)))
+        # elif pollutant == 'NO2':
+        #     d_mean = data.mean()
+        #     iaqis.append(('no2_24h', str(d_mean)))
+        # elif pollutant == 'SO2':
+        #     d_mean = data.mean()
+        #     iaqis.append(('so2_24h', str(d_mean)))
+        # elif pollutant == 'CO':
+        #     d_mean = data.mean()
+        #     iaqis.append(('co_24h', str(d_mean)))
+    return iaqis
         
 
 
@@ -198,8 +199,8 @@ def getIaqis():
     resp_map = {}
     if len(filtered_pollutans) != 0:
         resp_map['status']= 'DONE'
-        aqi = [int(get_aqi(filtered_pollutans, filtered_windows[i])) for i in range(len(filtered_windows))]
-        resp_map['aqi'] = aqi
+        # aqi = [int(get_aqi(filtered_pollutans, filtered_windows[i])) for i in range(len(filtered_windows))]
+        # resp_map['aqi'] = aqi
         # print(aqi)
         for k in range(len(filtered_pollutans)):
             pollutant = filtered_pollutans[k]

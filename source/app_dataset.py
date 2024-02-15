@@ -84,7 +84,7 @@ class OntarioDataset:
         # )
         
         self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(
-            self.windows_original_map,
+            self.windows_map,
             pollutants, 
             stations
         )
@@ -743,7 +743,7 @@ class HongKongDataset:
     def common_windows(self, pollutants, stations, max_windows = 10000):
         
         self.windows, self.window_dates, self.window_station_ids, self.window_stations = commonWindows(
-            self.windows_original_map, 
+            self.windows_map, 
             pollutants, 
             stations
         )
